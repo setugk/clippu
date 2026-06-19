@@ -1,0 +1,9 @@
+services:
+  clipboard:
+    build: .
+    container_name: clipboard
+    restart: unless-stopped
+    ports:
+      - "5050:5000"
+    volumes:
+      - ./data:/data
