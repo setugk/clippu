@@ -43,7 +43,7 @@ def read_settings():
         with open(SETTINGS_FILE, "r") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        return {"max": DEFAULT_MAX}
+        return {"max": DEFAULT_MAX, "dark": False}
 
 def write_settings(settings):
     os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
@@ -61,14 +61,27 @@ PAGE = """<!DOCTYPE html>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { height: -webkit-fill-available; }
 
+:root {
+  --bg: #F5F5F5; --surface: #FFFFFF; --border: #E5E5E5; --border-mid: #D4D4D4;
+  --text: #111111; --text-muted: #A3A3A3; --text-faint: #C4C4C4;
+  --subtle: #FAFAFA; --subtle-2: #F5F5F5; --divider: #F0F0F0;
+  --accent: #111111; --accent-fg: #FFFFFF; --disabled-bg: #EBEBEB;
+}
+[data-dark] {
+  --bg: #0F0F0F; --surface: #1A1A1A; --border: #2A2A2A; --border-mid: #404040;
+  --text: #EFEFEF; --text-muted: #636363; --text-faint: #454545;
+  --subtle: #161616; --subtle-2: #222222; --divider: #232323;
+  --accent: #EFEFEF; --accent-fg: #111111; --disabled-bg: #2A2A2A;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #F5F5F5;
+  background: var(--bg);
   height: 100dvh;
   min-height: -webkit-fill-available;
   display: flex;
   flex-direction: column;
-  color: #111;
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   max-width: 1000px;
   margin: 0 auto;
@@ -78,8 +91,8 @@ body {
 .bar {
   height: 48px;
   padding: 0 20px;
-  background: #fff;
-  border-bottom: 1px solid #E5E5E5;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -90,47 +103,67 @@ body {
 .bar-title { font-size: 14px; font-weight: 600; letter-spacing: -0.02em; }
 .bar-actions { margin-left: auto; display: flex; align-items: center; }
 
+.settings-wrapper { position: relative; }
 .settings-btn {
-  position: relative;
   width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   background: none; border: none; cursor: pointer;
-  color: #A3A3A3; border-radius: 8px;
+  color: var(--text-muted); border-radius: 8px;
   transition: background 0.1s, color 0.1s;
 }
-.settings-btn:hover { background: #F0F0F0; color: #111; }
+.settings-btn:hover { background: var(--subtle-2); color: var(--text); }
 
 .settings-dropdown {
   display: none;
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  background: #fff;
-  border: 1.5px solid #E5E5E5;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
   border-radius: 10px;
   padding: 6px;
-  min-width: 160px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  min-width: 170px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
   z-index: 200;
 }
 .settings-dropdown.open { display: block; }
 .settings-dropdown-label {
-  font-size: 10px; font-weight: 600; color: #A3A3A3;
+  font-size: 10px; font-weight: 600; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: 0.07em;
   padding: 4px 8px 6px;
 }
+.settings-divider { height: 1px; background: var(--border); margin: 4px 0; }
 .settings-option {
   display: flex; align-items: center; justify-content: space-between;
   width: 100%; padding: 7px 10px;
   border-radius: 6px; border: none; background: none;
-  font-size: 13px; font-family: inherit; color: #111;
-  cursor: pointer; text-align: left;
-  transition: background 0.08s;
+  font-size: 13px; font-family: inherit; color: var(--text);
+  cursor: pointer; text-align: left; transition: background 0.08s;
 }
-.settings-option:hover { background: #F5F5F5; }
-.settings-option .opt-check { visibility: hidden; color: #111; }
+.settings-option:hover { background: var(--subtle-2); }
+.settings-option .opt-check { visibility: hidden; }
 .settings-option.active { font-weight: 600; }
 .settings-option.active .opt-check { visibility: visible; }
+.settings-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 7px 10px;
+  border-radius: 6px; border: none; background: none;
+  font-size: 13px; font-family: inherit; color: var(--text);
+  cursor: pointer; transition: background 0.08s;
+}
+.settings-toggle:hover { background: var(--subtle-2); }
+.toggle-track {
+  width: 28px; height: 16px; border-radius: 8px;
+  background: var(--border-mid); position: relative;
+  transition: background 0.2s; flex-shrink: 0;
+}
+.toggle-track.on { background: var(--accent); }
+.toggle-thumb {
+  position: absolute; top: 2px; left: 2px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--surface); transition: transform 0.2s;
+}
+.toggle-track.on .toggle-thumb { transform: translateX(12px); }
 
 /* Layout */
 .main {
@@ -144,8 +177,8 @@ body {
 
 /* History panel (left) */
 .history-panel {
-  background: #fff;
-  border: 1.5px solid #E5E5E5;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
   border-radius: 12px;
   margin: 12px 0 12px 12px;
   display: flex;
@@ -156,232 +189,137 @@ body {
 
 .history-header {
   padding: 12px 14px 10px;
-  border-bottom: 1px solid #F0F0F0;
+  border-bottom: 1px solid var(--divider);
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
 }
 .history-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #A3A3A3;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.07em;
 }
 .clear-all-btn {
-  font-size: 11px;
-  font-weight: 500;
-  color: #C4C4C4;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: color 0.12s;
-  letter-spacing: 0;
+  font-size: 11px; font-weight: 500; color: var(--text-faint);
+  background: none; border: none; cursor: pointer;
+  padding: 2px 6px; border-radius: 4px; transition: color 0.12s; letter-spacing: 0;
 }
 .clear-all-btn:hover { color: #DC2626; }
 
-.history-list {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-}
+.history-list { flex: 1; overflow-y: auto; min-height: 0; }
 .history-list::-webkit-scrollbar { width: 3px; }
 .history-list::-webkit-scrollbar-track { background: transparent; }
-.history-list::-webkit-scrollbar-thumb { background: #E5E5E5; border-radius: 2px; }
+.history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 .history-item {
   padding: 10px 14px;
-  border-bottom: 1px solid #F5F5F5;
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  cursor: pointer;
-  transition: background 0.08s;
-  user-select: none;
+  border-bottom: 1px solid var(--subtle-2);
+  display: flex; align-items: flex-start; gap: 6px;
+  cursor: pointer; transition: background 0.08s; user-select: none;
 }
 .history-item:last-child { border-bottom: none; }
-.history-item:hover { background: #FAFAFA; }
+.history-item:hover { background: var(--subtle); }
 .history-item.selected {
-  background: #F5F5F5;
-  border-left: 2px solid #111;
+  background: var(--subtle-2);
+  border-left: 2px solid var(--accent);
   padding-left: 12px;
 }
 
 .item-body { flex: 1; min-width: 0; }
 .item-text {
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: #111;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  word-break: break-word;
+  font-size: 12.5px; line-height: 1.5; color: var(--text);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; word-break: break-word;
 }
-.item-time { margin-top: 3px; font-size: 10.5px; color: #C4C4C4; }
+.item-time { margin-top: 3px; font-size: 10.5px; color: var(--text-faint); }
 
 .del-btn {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  color: #D4D4D4;
-  transition: color 0.12s, background 0.12s;
-  padding: 0;
-  margin-top: 1px;
+  flex-shrink: 0; width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 4px; cursor: pointer;
+  color: var(--text-faint); transition: color 0.12s, background 0.12s;
+  padding: 0; margin-top: 1px;
 }
 .del-btn:hover { color: #DC2626; background: #FFF1F2; }
 
 .empty-state {
-  padding: 40px 16px;
-  text-align: center;
-  color: #D4D4D4;
-  font-size: 12px;
-  line-height: 1.8;
+  padding: 40px 16px; text-align: center;
+  color: var(--text-faint); font-size: 12px; line-height: 1.8;
 }
 
 /* Compose (right) */
 .compose-right {
-  display: flex;
-  flex-direction: column;
-  padding: 24px 32px 12px;
-  gap: 12px;
-  overflow: hidden;
-  min-height: 0;
+  display: flex; flex-direction: column;
+  padding: 24px 32px 12px; gap: 12px; overflow: hidden; min-height: 0;
 }
 .spacer { flex: 1; }
 
 /* Preview box */
 .preview-box {
-  display: none;
-  position: relative;
-  background: #fff;
-  border: 1.5px solid #E5E5E5;
-  border-radius: 12px;
-  overflow: hidden;
-  min-height: 0;
+  display: none; position: relative;
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 12px; overflow: hidden; min-height: 0;
 }
 .preview-box.visible { display: flex; flex-direction: column; flex: 1; }
 
 .preview-actions {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  gap: 4px;
-  z-index: 2;
-  background: #fff;
-  border-radius: 8px;
-  padding: 2px;
-  box-shadow: 0 0 0 1.5px #E5E5E5;
+  position: absolute; top: 10px; right: 10px;
+  display: flex; gap: 4px; z-index: 2;
+  background: var(--surface); border-radius: 8px; padding: 2px;
+  box-shadow: 0 0 0 1.5px var(--border);
 }
-
 .preview-copy-btn {
-  font-size: 12px;
-  font-weight: 500;
-  color: #111;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 5px 10px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: background 0.1s, color 0.12s;
-  white-space: nowrap;
+  font-size: 12px; font-weight: 500; color: var(--text);
+  background: none; border: none; cursor: pointer;
+  padding: 5px 10px; border-radius: 6px;
+  display: flex; align-items: center; gap: 5px;
+  transition: background 0.1s, color 0.12s; white-space: nowrap;
 }
-.preview-copy-btn:hover { background: #F5F5F5; }
+.preview-copy-btn:hover { background: var(--subtle-2); }
 .preview-copy-btn.copied { color: #16A34A; background: #F0FDF4; }
 
 .preview-close {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  color: #A3A3A3;
-  transition: background 0.1s, color 0.1s;
-  padding: 0;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 6px; cursor: pointer;
+  color: var(--text-muted); transition: background 0.1s, color 0.1s; padding: 0;
 }
-.preview-close:hover { background: #F0F0F0; color: #111; }
+.preview-close:hover { background: var(--subtle-2); color: var(--text); }
 
 .preview-content {
-  flex: 1;
-  min-height: 0;
-  padding: 48px 18px 16px;
-  font-size: 14px;
-  line-height: 1.65;
-  color: #111;
-  white-space: pre-wrap;
-  word-break: break-word;
-  overflow-y: auto;
+  flex: 1; min-height: 0; padding: 48px 18px 16px;
+  font-size: 14px; line-height: 1.65; color: var(--text);
+  white-space: pre-wrap; word-break: break-word; overflow-y: auto;
 }
 .preview-content::-webkit-scrollbar { width: 3px; }
-.preview-content::-webkit-scrollbar-thumb { background: #E5E5E5; border-radius: 2px; }
+.preview-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* Input wrapper */
 .input-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  background: #fff;
-  border: 1.5px solid #E5E5E5;
-  border-radius: 14px;
-  transition: border-color 0.15s;
-  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px; padding: 8px;
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 14px; transition: border-color 0.15s; flex-shrink: 0;
 }
-.input-wrapper:focus-within { border-color: #C4C4C4; }
+.input-wrapper:focus-within { border-color: var(--border-mid); }
 
 textarea {
-  flex: 1;
-  min-width: 0;
-  min-height: 38px;
-  padding: 7px 4px 7px 10px;
-  font-size: 15px;
-  font-family: inherit;
-  line-height: 1.6;
-  color: #111;
-  background: transparent;
-  border: none;
-  resize: none;
-  outline: none;
-  overflow-y: hidden;
-  height: 38px;
+  flex: 1; min-width: 0; min-height: 38px;
+  padding: 7px 4px 7px 10px; font-size: 15px; font-family: inherit;
+  line-height: 1.6; color: var(--text); background: transparent;
+  border: none; resize: none; outline: none; overflow-y: hidden; height: 38px;
 }
-textarea::placeholder { color: #C4C4C4; }
+textarea::placeholder { color: var(--text-faint); }
 
 .send-btn {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  background: #111;
-  color: #fff;
-  border: none;
-  border-radius: 9px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.12s, transform 0.06s;
+  flex-shrink: 0; width: 34px; height: 34px;
+  background: var(--accent); color: var(--accent-fg);
+  border: none; border-radius: 9px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.12s, transform 0.06s;
 }
-.send-btn:hover:not(:disabled) { background: #2a2a2a; }
+.send-btn:hover:not(:disabled) { opacity: 0.8; }
 .send-btn:active:not(:disabled) { transform: scale(0.88); }
-.send-btn:disabled { background: #EBEBEB; color: #C4C4C4; cursor: default; }
+.send-btn:disabled { background: var(--disabled-bg); color: var(--text-faint); cursor: default; }
 
 /* Mobile */
 @media (max-width: 640px) {
@@ -389,13 +327,9 @@ textarea::placeholder { color: #C4C4C4; }
   .main { display: flex; flex-direction: column; overflow: hidden; }
   .history-panel { flex: 1; margin: 10px 10px calc(env(safe-area-inset-bottom) + 88px); min-height: 0; overflow: hidden; }
   .compose-right {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
+    position: fixed; bottom: 0; left: 0; right: 0;
     padding: 10px 10px max(env(safe-area-inset-bottom), 14px);
-    background: #F5F5F5;
-    border-top: 1px solid #E5E5E5;
-    gap: 8px;
-    z-index: 50;
+    background: var(--bg); border-top: 1px solid var(--border); gap: 8px; z-index: 50;
   }
   .spacer { display: none; }
   .preview-box.visible { max-height: 35vh; flex: none; }
@@ -408,15 +342,23 @@ textarea::placeholder { color: #C4C4C4; }
 <div class="bar">
   <span class="bar-title">Clippery</span>
   <div class="bar-actions">
-    <button class="settings-btn" id="settings-btn" title="Settings">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <div class="settings-wrapper">
+      <button class="settings-btn" id="settings-btn" title="Settings">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
       <div class="settings-dropdown" id="settings-dropdown">
         <div class="settings-dropdown-label">History limit</div>
         <button class="settings-option" data-max="25">25 clips <span class="opt-check">✓</span></button>
         <button class="settings-option" data-max="50">50 clips <span class="opt-check">✓</span></button>
         <button class="settings-option" data-max="0">Unlimited <span class="opt-check">✓</span></button>
+        <div class="settings-divider"></div>
+        <div class="settings-dropdown-label">Appearance</div>
+        <button class="settings-toggle" id="dark-mode-toggle">
+          Dark mode
+          <div class="toggle-track" id="dark-toggle-track"><div class="toggle-thumb"></div></div>
+        </button>
       </div>
-    </button>
+    </div>
   </div>
 </div>
 
@@ -646,13 +588,20 @@ setInterval(async () => {
 // Settings
 const settingsBtn      = document.getElementById('settings-btn');
 const settingsDropdown = document.getElementById('settings-dropdown');
+const darkToggleTrack  = document.getElementById('dark-toggle-track');
+
+function applyDark(dark) {
+  dark ? document.documentElement.setAttribute('data-dark', '')
+       : document.documentElement.removeAttribute('data-dark');
+  darkToggleTrack.classList.toggle('on', dark);
+}
 
 function updateSettingsUI() {
   const cur = SETTINGS.max;
   document.querySelectorAll('.settings-option').forEach(btn => {
-    const active = parseInt(btn.dataset.max) === cur;
-    btn.classList.toggle('active', active);
+    btn.classList.toggle('active', parseInt(btn.dataset.max) === cur);
   });
+  applyDark(!!SETTINGS.dark);
 }
 
 settingsBtn.addEventListener('click', e => {
@@ -661,22 +610,31 @@ settingsBtn.addEventListener('click', e => {
 });
 
 document.addEventListener('click', () => settingsDropdown.classList.remove('open'));
+settingsDropdown.addEventListener('click', e => e.stopPropagation());
 
 document.querySelectorAll('.settings-option').forEach(btn => {
-  btn.addEventListener('click', async e => {
-    e.stopPropagation();
+  btn.addEventListener('click', async () => {
     const max = parseInt(btn.dataset.max);
     try {
       const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({max})
       });
       SETTINGS = await res.json();
       updateSettingsUI();
     } catch(_) {}
-    settingsDropdown.classList.remove('open');
   });
+});
+
+document.getElementById('dark-mode-toggle').addEventListener('click', async () => {
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({dark: !SETTINGS.dark})
+    });
+    SETTINGS = await res.json();
+    applyDark(SETTINGS.dark);
+  } catch(_) {}
 });
 
 updateSettingsUI();
@@ -738,6 +696,8 @@ def update_settings():
     settings = read_settings()
     if "max" in data:
         settings["max"] = int(data["max"])
+    if "dark" in data:
+        settings["dark"] = bool(data["dark"])
     write_settings(settings)
     return jsonify(settings)
 
