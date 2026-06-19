@@ -1,11 +1,29 @@
 import os
 import json
 from datetime import datetime, timezone
-from flask import Flask, request, jsonify
+from functools import wraps
+from flask import Flask, request, jsonify, Response
 
 app = Flask(__name__)
 DATA_FILE = "/data/history.json"
 MAX_HISTORY = 25
+
+CLIPPU_USER = os.environ.get("CLIPPU_USER")
+CLIPPU_PASS = os.environ.get("CLIPPU_PASS")
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if CLIPPU_USER and CLIPPU_PASS:
+            auth = request.authorization
+            if not auth or auth.username != CLIPPU_USER or auth.password != CLIPPU_PASS:
+                return Response(
+                    "Authentication required.",
+                    401,
+                    {"WWW-Authenticate": 'Basic realm="Clippu"'}
+                )
+        return f(*args, **kwargs)
+    return decorated
 
 def read_history():
     try:
@@ -559,16 +577,19 @@ setInterval(async () => {
 </html>"""
 
 @app.route("/", methods=["GET"])
+@requires_auth
 def index():
     history = read_history()
     history_json = json.dumps(history).replace("</", "<\\/")
     return PAGE.replace("__HISTORY_JSON__", history_json)
 
 @app.route("/api/history", methods=["GET"])
+@requires_auth
 def api_history():
     return jsonify({"history": read_history()})
 
 @app.route("/share", methods=["POST"])
+@requires_auth
 def share():
     data = request.get_json(silent=True) or {}
     text = data.get("text", "").strip()
@@ -580,6 +601,7 @@ def share():
     return jsonify({"history": history})
 
 @app.route("/delete", methods=["POST"])
+@requires_auth
 def delete_item():
     data = request.get_json(silent=True) or {}
     ts = data.get("ts", "")
@@ -588,6 +610,7 @@ def delete_item():
     return jsonify({"history": history})
 
 @app.route("/clear", methods=["POST"])
+@requires_auth
 def clear_history():
     write_history([])
     return jsonify({"history": []})

@@ -41,6 +41,18 @@ services:
       - ./data:/data
 ```
 
+## Authentication
+
+Set `CLIPPU_USER` and `CLIPPU_PASS` in your `docker-compose.yml` to enable HTTP basic auth. The browser will prompt for credentials on first visit.
+
+```yaml
+environment:
+  - CLIPPU_USER=admin
+  - CLIPPU_PASS=changeme
+```
+
+If neither variable is set, the app runs without auth — fine if you're behind Cloudflare Access or another reverse proxy that handles it.
+
 ## Remote access (optional)
 
 If you want to access it from outside your home network, put it behind a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) with a Zero Trust Access policy. That way you get your own `clip.yourdomain.com` with email OTP authentication — no passwords to manage, no port forwarding.
