@@ -19,7 +19,27 @@ Clippery is the fix. Open it on any device, paste your text, and it's instantly 
 - Auto-syncs across all open tabs every 2 seconds — no refresh needed
 - Works on desktop and mobile
 
-## Getting started
+## Getting started with an AI assistant
+
+Not comfortable with the terminal? Copy the prompt below and paste it into Claude, ChatGPT, or any AI assistant. It has everything the AI needs to walk you through the install step by step.
+
+```
+I want to self-host Clippery, a shared clipboard app that runs in Docker.
+Repo: https://github.com/setugk/clippery
+
+Please help me:
+1. Check if Docker is installed, and if not, help me install it
+2. Clone the Clippery repo and navigate into it
+3. Open docker-compose.yml and set my own username and password
+4. Start the app with Docker
+5. Open it in my browser and confirm it's working
+
+My operating system is: [Mac / Windows / Linux — fill this in]
+```
+
+---
+
+## Getting started (manual)
 
 You'll need [Docker](https://docs.docker.com/get-docker/) installed. That's the only dependency.
 
