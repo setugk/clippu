@@ -6,7 +6,7 @@ Then they killed the free tier. Then the app stopped getting updates. Then you m
 
 Clippery is the fix. Open it on any device, paste your text, and it's instantly there on every other device with it open. No account. No subscription. No "sign in with Apple." Just a tiny server you run yourself.
 
-![Clippery desktop](screenshots/clippery_selected.png)
+![Clippery desktop](screenshots/clippery_desktop.png)
 
 <img src="screenshots/clippery_mobile.png" alt="Clippery mobile" width="320" />
 
