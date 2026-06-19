@@ -4,10 +4,15 @@ A self-hosted shared clipboard. Share text between devices in seconds — no acc
 
 I built this because I needed a fast way to move text between a work laptop and a personal laptop. iCloud isn't available on work machines, and Notion felt like overkill for "paste this URL somewhere I can grab it."
 
+![Clippu desktop](screenshots/clippu_selected.png)
+
+<img src="screenshots/clippu_mobile.png" alt="Clippu mobile" width="320" />
+
 ## What it does
 
 - Paste text on one device, copy it on another
 - History of the last 25 clips, always visible
+- Click any item to preview the full text
 - Auto-syncs across all open tabs every 2 seconds — no refresh needed
 - Works on desktop and mobile
 
