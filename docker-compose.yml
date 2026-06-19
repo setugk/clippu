@@ -8,5 +8,5 @@ services:
     volumes:
       - ./data:/data
     environment:
-      - CLIPPU_USER=admin
-      - CLIPPU_PASS=changeme
+      - CLIPPERY_USER=admin
+      - CLIPPERY_PASS=changeme

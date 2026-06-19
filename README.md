@@ -1,12 +1,14 @@
-# Clippu
+# Clippery
 
-A self-hosted shared clipboard. Share text between devices in seconds — no accounts, no cloud, no friction.
+Remember Pushbullet? You'd copy something on your phone and it would just appear on your laptop. It was magical.
 
-I built this because I needed a fast way to move text between a work laptop and a personal laptop. iCloud isn't available on work machines, and Notion felt like overkill for "paste this URL somewhere I can grab it."
+Then they killed the free tier. Then the app stopped getting updates. Then you moved on — back to emailing yourself links, texting yourself snippets, opening Notion just to paste a URL.
 
-![Clippu desktop](screenshots/clippu_selected.png)
+Clippery is the fix. Open it on any device, paste your text, and it's instantly there on every other device with it open. No account. No subscription. No "sign in with Apple." Just a tiny server you run yourself.
 
-<img src="screenshots/clippu_mobile.png" alt="Clippu mobile" width="320" />
+![Clippery desktop](screenshots/clippery_selected.png)
+
+<img src="screenshots/clippery_mobile.png" alt="Clippery mobile" width="320" />
 
 ## What it does
 
@@ -39,23 +41,20 @@ services:
       - "5050:5000"
     volumes:
       - ./data:/data
+    environment:
+      - CLIPPERY_USER=admin
+      - CLIPPERY_PASS=changeme
 ```
 
 ## Authentication
 
-Set `CLIPPU_USER` and `CLIPPU_PASS` in your `docker-compose.yml` to enable HTTP basic auth. The browser will prompt for credentials on first visit.
-
-```yaml
-environment:
-  - CLIPPU_USER=admin
-  - CLIPPU_PASS=changeme
-```
+Set `CLIPPERY_USER` and `CLIPPERY_PASS` in your `docker-compose.yml` to enable HTTP basic auth. The browser will prompt for credentials on first visit.
 
 If neither variable is set, the app runs without auth — fine if you're behind Cloudflare Access or another reverse proxy that handles it.
 
 ## Remote access (optional)
 
-If you want to access it from outside your home network, put it behind a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) with a Zero Trust Access policy. That way you get your own `clip.yourdomain.com` with email OTP authentication — no passwords to manage, no port forwarding.
+If you want to access it from outside your home network, put it behind a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) with a Zero Trust Access policy. That way you get your own `clippery.yourdomain.com` with email OTP authentication — no passwords to manage, no port forwarding.
 
 ## License
 
