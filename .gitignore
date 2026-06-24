@@ -1,2 +1,8 @@
 data/
 context.md
+backups/
+docs/
+From other apps/
+Notion Export/
+*.enex
+.DS_Store
