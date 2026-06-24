@@ -19,6 +19,8 @@ const state = {
   syncVersion: "",
   mobileView: "sidebar",
   navHistory: [],
+  selectMode: false,
+  selectedNoteIds: new Set(),
 };
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
@@ -43,8 +45,12 @@ const searchInput    = $("search-input");
 const navRecents     = $("nav-recents");
 const formatBar      = $("format-bar");
 const bodyPlaceholder = $("note-body-placeholder");
+const notesPaneEl    = $("notes-pane");
+const bulkActionBar  = $("bulk-action-bar");
+const bulkCountEl    = $("bulk-count");
 
 let editingTag = null;
+let movingFolderNode = null;
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -300,6 +306,19 @@ function buildTree(folders, parentId = null) {
     .map(f => ({ ...f, children: buildTree(folders, f.id) }));
 }
 
+function getDescendantIds(folderId) {
+  const ids = new Set([folderId]);
+  const queue = [folderId];
+  while (queue.length) {
+    const pid = queue.shift();
+    state.folders.filter(f => f.parent_id === pid).forEach(f => {
+      ids.add(f.id);
+      queue.push(f.id);
+    });
+  }
+  return ids;
+}
+
 let activeFolderCtxMenu = null;
 
 function openFolderCtxMenu(node, anchor) {
@@ -309,6 +328,7 @@ function openFolderCtxMenu(node, anchor) {
   menu.innerHTML = `
     <button data-action="new">New subfolder</button>
     <button data-action="rename">Rename</button>
+    <button data-action="move">Move to…</button>
     <button data-action="delete" class="danger">Delete folder</button>
   `;
   const rect = anchor.getBoundingClientRect();
@@ -322,6 +342,7 @@ function openFolderCtxMenu(node, anchor) {
     const a = btn.dataset.action;
     if (a === "new")    openFolderModal(null, node.id);
     if (a === "rename") openFolderModal(node);
+    if (a === "move")   openFolderMoveModal(node);
     if (a === "delete") deleteFolder(node);
   });
   document.body.appendChild(menu);
@@ -656,12 +677,14 @@ function renderNotesList() {
   }
 
   html += notes.map(n => {
-    const isActive = state.note && state.note.id === n.id;
+    const isActive   = !state.selectMode && state.note && state.note.id === n.id;
+    const isSelected = state.selectMode && state.selectedNoteIds.has(n.id);
     const preview  = (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
     const chips    = n.tags.map(t => `<span class="note-tag-chip">#${esc(t)}</span>`).join("");
     const dateStr = timeAgo(state.dateDisplay === "updated" ? n.updated_at : n.created_at);
     return `
-      <div class="note-item${isActive ? " active" : ""}" data-note-id="${n.id}">
+      <div class="note-item${isActive ? " active" : ""}${isSelected ? " selected" : ""}" data-note-id="${n.id}">
+        ${state.selectMode ? `<input type="checkbox" class="note-checkbox"${isSelected ? " checked" : ""}>` : ""}
         <div class="note-item-title${n.title ? "" : " untitled"}">${n.title ? esc(n.title) : "Untitled"}</div>
         ${preview ? `<div class="note-item-preview">${esc(preview)}</div>` : ""}
         ${chips ? `<div class="note-item-tags">${chips}</div>` : ""}
@@ -690,7 +713,21 @@ function renderNotesList() {
   notesList.querySelectorAll(".note-item").forEach(el => {
     el.addEventListener("click", () => {
       const n = state.notes.find(n => n.id === el.dataset.noteId);
-      if (n) openNote(n);
+      if (!n) return;
+      if (state.selectMode) {
+        if (state.selectedNoteIds.has(n.id)) {
+          state.selectedNoteIds.delete(n.id);
+          el.classList.remove("selected");
+        } else {
+          state.selectedNoteIds.add(n.id);
+          el.classList.add("selected");
+        }
+        const cb = el.querySelector(".note-checkbox");
+        if (cb) cb.checked = state.selectedNoteIds.has(n.id);
+        updateBulkCount();
+      } else {
+        openNote(n);
+      }
     });
   });
 }
@@ -1119,6 +1156,162 @@ $("delete-note-btn").addEventListener("click", async () => {
   showToast("Note deleted");
 });
 
+// ── Multi-select ──────────────────────────────────────────────────────────────
+
+function updateBulkCount() {
+  const n = state.selectedNoteIds.size;
+  bulkCountEl.textContent = n === 0 ? "Select notes" : `${n} selected`;
+}
+
+function enterSelectMode() {
+  state.selectMode = true;
+  state.selectedNoteIds = new Set();
+  notesPaneEl.classList.add("select-mode");
+  bulkActionBar.classList.remove("hidden");
+  updateBulkCount();
+  renderNotesList();
+}
+
+function exitSelectMode() {
+  state.selectMode = false;
+  state.selectedNoteIds = new Set();
+  notesPaneEl.classList.remove("select-mode");
+  bulkActionBar.classList.add("hidden");
+  renderNotesList();
+}
+
+async function bulkDelete() {
+  const ids = [...state.selectedNoteIds];
+  if (!ids.length) return;
+  if (!confirm(`Delete ${ids.length} note${ids.length !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+  await Promise.all(ids.map(id => api("DELETE", `/api/notes/${id}`)));
+  if (state.note && ids.includes(state.note.id)) {
+    state.note = null;
+    showEditorEmpty();
+  }
+  exitSelectMode();
+  await loadNotes();
+  showToast(`Deleted ${ids.length} note${ids.length !== 1 ? "s" : ""}`);
+}
+
+async function bulkMove(folderId) {
+  const ids = [...state.selectedNoteIds];
+  await Promise.all(ids.map(id => api("PUT", `/api/notes/${id}`, { folder_id: folderId })));
+  if (state.note && ids.includes(state.note.id)) {
+    state.note = { ...state.note, folder_id: folderId };
+  }
+  exitSelectMode();
+  await loadNotes();
+  const destName = folderId ? (state.folders.find(f => f.id === folderId)?.name || "folder") : "root";
+  showToast(`Moved ${ids.length} note${ids.length !== 1 ? "s" : ""} to "${destName}"`);
+}
+
+$("select-mode-btn").addEventListener("click", enterSelectMode);
+$("select-done-btn").addEventListener("click", exitSelectMode);
+$("bulk-move-btn").addEventListener("click", () => { if (state.selectedNoteIds.size) openMoveModal(); });
+$("bulk-delete-btn").addEventListener("click", bulkDelete);
+
+// Bulk tag panel
+let bulkTagList = [];
+
+function renderBulkTagChips() {
+  const wrap = $("bulk-tag-input-wrap");
+  wrap.querySelectorAll(".bulk-tag-chip").forEach(el => el.remove());
+  const input = $("bulk-tag-input");
+  bulkTagList.forEach(tag => {
+    const chip = document.createElement("span");
+    chip.className = "bulk-tag-chip";
+    chip.innerHTML = `#${esc(tag)}<button data-tag="${esc(tag)}" aria-label="Remove">×</button>`;
+    chip.querySelector("button").addEventListener("click", () => {
+      bulkTagList = bulkTagList.filter(t => t !== tag);
+      renderBulkTagChips();
+    });
+    wrap.insertBefore(chip, input);
+  });
+}
+
+function addBulkTag(val) {
+  val = val.replace(/[,#]/g, "").trim().toLowerCase();
+  if (val && !bulkTagList.includes(val)) {
+    bulkTagList.push(val);
+    renderBulkTagChips();
+  }
+  $("bulk-tag-input").value = "";
+  hideBulkSuggestions();
+}
+
+function hideBulkSuggestions() {
+  const el = $("bulk-tag-suggestions");
+  el.classList.add("hidden");
+  el.innerHTML = "";
+}
+
+function showBulkTagPanel() {
+  bulkTagList = [];
+  $("bulk-main").classList.add("hidden");
+  $("bulk-tag-panel").classList.remove("hidden");
+  renderBulkTagChips();
+  setTimeout(() => $("bulk-tag-input").focus(), 50);
+}
+
+function hideBulkTagPanel() {
+  $("bulk-tag-panel").classList.add("hidden");
+  $("bulk-main").classList.remove("hidden");
+  hideBulkSuggestions();
+  bulkTagList = [];
+}
+
+async function applyBulkTags() {
+  const inputVal = $("bulk-tag-input").value.replace(/[,#]/g, "").trim().toLowerCase();
+  if (inputVal) addBulkTag(inputVal);
+  if (!bulkTagList.length) { hideBulkTagPanel(); return; }
+  const ids = [...state.selectedNoteIds];
+  const tags = [...bulkTagList];
+  await Promise.all(ids.map(id => {
+    const note = state.notes.find(n => n.id === id);
+    const merged = [...new Set([...(note?.tags || []), ...tags])];
+    return api("PUT", `/api/notes/${id}`, { tags: merged });
+  }));
+  exitSelectMode();
+  await loadNotes();
+  showToast(`Tagged ${ids.length} note${ids.length !== 1 ? "s" : ""}`);
+}
+
+$("bulk-tag-btn").addEventListener("click", showBulkTagPanel);
+$("bulk-tag-cancel").addEventListener("click", hideBulkTagPanel);
+$("bulk-tag-apply").addEventListener("click", applyBulkTags);
+
+const bulkTagInputEl = $("bulk-tag-input");
+
+bulkTagInputEl.addEventListener("input", () => {
+  const val = bulkTagInputEl.value.trim().toLowerCase();
+  const sugEl = $("bulk-tag-suggestions");
+  if (!val) { hideBulkSuggestions(); return; }
+  const already = new Set(bulkTagList);
+  const matches = state.tags.map(t => t.name).filter(n => n.includes(val) && !already.has(n)).slice(0, 8);
+  if (!matches.length) { hideBulkSuggestions(); return; }
+  sugEl.innerHTML = matches.map(n => `<button class="bulk-tag-suggestion-item" data-tag="${esc(n)}">#${esc(n)}</button>`).join("");
+  sugEl.classList.remove("hidden");
+  sugEl.querySelectorAll(".bulk-tag-suggestion-item").forEach(btn => {
+    btn.addEventListener("mousedown", e => { e.preventDefault(); addBulkTag(btn.dataset.tag); });
+  });
+});
+
+bulkTagInputEl.addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === ",") {
+    e.preventDefault();
+    addBulkTag(bulkTagInputEl.value.replace(/,/g, "").trim().toLowerCase());
+  }
+  if (e.key === "Escape") { hideBulkSuggestions(); bulkTagInputEl.value = ""; }
+  if (e.key === "Backspace" && !bulkTagInputEl.value && bulkTagList.length) {
+    bulkTagList = bulkTagList.slice(0, -1);
+    renderBulkTagChips();
+    hideBulkSuggestions();
+  }
+});
+
+bulkTagInputEl.addEventListener("blur", () => setTimeout(hideBulkSuggestions, 150));
+
 // ── Move note ──────────────────────────────────────────────────────────────────
 
 $("move-note-btn").addEventListener("click", () => {
@@ -1127,22 +1320,46 @@ $("move-note-btn").addEventListener("click", () => {
 });
 
 function openMoveModal() {
+  movingFolderNode = null;
   const modal = $("move-modal");
   const list  = $("move-folder-list");
+  $("move-modal-title").textContent = "Move to folder";
   list.innerHTML = "";
 
-  // Root option
-  const rootBtn = makeMoveFolderOption(null, "No folder (root)", state.note?.folder_id === null);
+  // Root option — no "current" highlight in bulk mode (notes may have mixed folders)
+  const rootBtn = makeMoveFolderOption(null, "No folder (root)", !state.selectMode && state.note?.folder_id === null);
   list.appendChild(rootBtn);
 
-  // Flatten folder tree with indentation
   function addFolder(node, depth = 0) {
-    const isCurrent = state.note?.folder_id === node.id;
+    const isCurrent = !state.selectMode && state.note?.folder_id === node.id;
     const btn = makeMoveFolderOption(node.id, node.name, isCurrent, depth);
     list.appendChild(btn);
-    if (state.expandedFolders.has(node.id) || true) {
-      node.children.forEach(child => addFolder(child, depth + 1));
-    }
+    node.children.forEach(child => addFolder(child, depth + 1));
+  }
+  buildTree(state.folders).forEach(n => addFolder(n));
+
+  modal.classList.remove("hidden");
+}
+
+function openFolderMoveModal(node) {
+  movingFolderNode = node;
+  const modal = $("move-modal");
+  const list  = $("move-folder-list");
+  $("move-modal-title").textContent = `Move "${node.name}" to…`;
+  list.innerHTML = "";
+
+  const excluded = getDescendantIds(node.id);
+
+  // Top-level option
+  const rootBtn = makeMoveFolderOption(null, "Top level (no parent)", node.parent_id === null);
+  list.appendChild(rootBtn);
+
+  function addFolder(n, depth = 0) {
+    if (excluded.has(n.id)) return;
+    const isCurrent = n.id === node.parent_id;
+    const btn = makeMoveFolderOption(n.id, n.name, isCurrent, depth);
+    list.appendChild(btn);
+    n.children.forEach(child => addFolder(child, depth + 1));
   }
   buildTree(state.folders).forEach(n => addFolder(n));
 
@@ -1157,21 +1374,34 @@ function makeMoveFolderOption(folderId, name, isCurrent, depth = 0) {
   if (!isCurrent) {
     btn.addEventListener("click", async () => {
       $("move-modal").classList.add("hidden");
-      if (!state.note) return;
-      const updated = await api("PUT", `/api/notes/${state.note.id}`, { folder_id: folderId });
-      state.note = updated;
-      state.notes = state.notes.filter(n => n.id !== updated.id);
-      renderNotesList();
-      const destName = folderId ? (state.folders.find(f => f.id === folderId)?.name || "folder") : "root";
-      showToast(`Moved to "${destName}"`);
+      if (movingFolderNode) {
+        const node = movingFolderNode;
+        movingFolderNode = null;
+        const updated = await api("PUT", `/api/folders/${node.id}`, { parent_id: folderId });
+        const idx = state.folders.findIndex(f => f.id === updated.id);
+        if (idx !== -1) state.folders[idx] = updated;
+        const destName = folderId ? (state.folders.find(f => f.id === folderId)?.name || "folder") : "root";
+        renderFolderTree();
+        showToast(`"${node.name}" moved to "${destName}"`);
+      } else if (state.selectMode) {
+        await bulkMove(folderId);
+      } else {
+        if (!state.note) return;
+        const updated = await api("PUT", `/api/notes/${state.note.id}`, { folder_id: folderId });
+        state.note = updated;
+        state.notes = state.notes.filter(n => n.id !== updated.id);
+        renderNotesList();
+        const destName = folderId ? (state.folders.find(f => f.id === folderId)?.name || "folder") : "root";
+        showToast(`Moved to "${destName}"`);
+      }
     });
   }
   return btn;
 }
 
-$("move-modal-close").addEventListener("click", () => $("move-modal").classList.add("hidden"));
+$("move-modal-close").addEventListener("click", () => { movingFolderNode = null; $("move-modal").classList.add("hidden"); });
 $("move-modal").addEventListener("click", e => {
-  if (e.target === $("move-modal")) $("move-modal").classList.add("hidden");
+  if (e.target === $("move-modal")) { movingFolderNode = null; $("move-modal").classList.add("hidden"); }
 });
 
 // ── Overflow menu ─────────────────────────────────────────────────────────────

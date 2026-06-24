@@ -53,6 +53,11 @@ def create_folder():
 @requires_auth
 def update_folder(folder_id):
     data = request.get_json(silent=True) or {}
+    if "parent_id" in data:
+        result = db.move_folder(folder_id, data["parent_id"] or None)
+        if not result:
+            return jsonify({"error": "not found"}), 404
+        return jsonify(result)
     name = (data.get("name") or "").strip()
     if not name:
         return jsonify({"error": "name required"}), 400
@@ -107,7 +112,7 @@ def create_note():
 @requires_auth
 def update_note(note_id):
     data = request.get_json(silent=True) or {}
-    kwargs = {k: data[k] for k in ("title", "body", "folder_id", "tags") if k in data}
+    kwargs = {k: data[k] for k in ("title", "body", "folder_id", "tags", "created_at") if k in data}
     if "folder_id" in kwargs and not kwargs["folder_id"]:
         kwargs["folder_id"] = None
     result = db.update_note(note_id, **kwargs)

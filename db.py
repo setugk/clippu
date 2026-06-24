@@ -111,6 +111,19 @@ def rename_folder(folder_id, name):
     return dict(row) if row else None
 
 
+def move_folder(folder_id, parent_id):
+    conn = get_conn()
+    ts = now()
+    with conn:
+        conn.execute(
+            "UPDATE folders SET parent_id=?, updated_at=? WHERE id=?",
+            (parent_id, ts, folder_id)
+        )
+    row = conn.execute("SELECT * FROM folders WHERE id=?", (folder_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def delete_folder(folder_id):
     conn = get_conn()
     with conn:
@@ -208,7 +221,7 @@ def update_note(note_id, **kwargs):
     conn = get_conn()
     sets, params = ["updated_at=?"], [now()]
 
-    for field in ("title", "body", "folder_id"):
+    for field in ("title", "body", "folder_id", "created_at"):
         if field in kwargs:
             sets.append(f"{field}=?")
             params.append(kwargs[field])

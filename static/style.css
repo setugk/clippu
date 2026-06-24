@@ -851,15 +851,184 @@ body {
 
   /* Floating format bar hidden on mobile (native selection menu handles it) */
   .floating-format-bar { display: none !important; }
+
+  /* No persistent selected state in sidebar — pane title shows current context.
+     Touch has no cursor so a filled active row is misleading after navigation. */
+  .nav-item.active,
+  .folder-row.active,
+  .tag-nav-item.active { background: none; }
+  /* Keep weight/color so the item still looks distinct when sidebar is visible */
+  .nav-item.active     { color: var(--text); font-weight: 600; }
+  .tag-nav-item.active { color: var(--text); font-weight: 600; }
+  .folder-row.active .folder-btn { color: var(--text); font-weight: 600; }
 }
 
-/* Touch devices: disable :hover backgrounds that persist after tap on iOS */
+/* ── Multi-select ─────────────────────────────────────────────────────────── */
+
+.select-btn {
+  padding: 4px 8px;
+  font-size: 12px; font-weight: 500; font-family: inherit;
+  color: var(--text-muted); background: none; border: none;
+  border-radius: 6px; cursor: pointer; transition: color 0.1s;
+  white-space: nowrap;
+}
+.select-btn:hover { color: var(--text); }
+
+.select-done-btn {
+  display: none;
+  padding: 4px 8px;
+  font-size: 12px; font-weight: 600; font-family: inherit;
+  color: var(--text); background: none; border: none;
+  border-radius: 6px; cursor: pointer;
+  white-space: nowrap;
+}
+
+/* In select mode: hide sort/new dropdowns and select btn; show done btn */
+.notes-pane.select-mode .pane-dropdown-wrapper { display: none; }
+.notes-pane.select-mode .select-btn { display: none; }
+.notes-pane.select-mode .select-done-btn { display: block; }
+
+/* Note item checkbox — native input, appearance reset, grid-centered tick */
+.note-checkbox {
+  -webkit-appearance: none; appearance: none;
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  width: 20px; height: 20px; margin: 0; padding: 0; box-sizing: border-box;
+  border: 1.5px solid var(--border-mid); border-radius: 50%;
+  background: var(--surface);
+  /* grid centers the ::before tick without pixel-guessing */
+  display: grid; place-content: center;
+  pointer-events: none; /* note-item click handles toggle */
+  transition: background 0.12s, border-color 0.12s;
+}
+.note-checkbox::before {
+  content: '';
+  /* 4×8 rectangle rotated → checkmark, centered by parent grid */
+  width: 4px; height: 8px;
+  border: 2px solid var(--accent-fg);
+  border-top: none; border-left: none;
+  transform: rotate(45deg) translateY(-1px);
+  opacity: 0;
+}
+.note-checkbox:checked { background: var(--accent); border-color: var(--accent); }
+.note-checkbox:checked::before { opacity: 1; }
+.notes-pane.select-mode .note-item { padding-left: 46px; }
+.note-item.selected { background: var(--surface-2); }
+
+/* Bulk action bar */
+.bulk-action-bar {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+  position: relative;
+}
+.bulk-action-bar.hidden { display: none; }
+.bulk-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bulk-main.hidden { display: none; }
+.bulk-count { font-size: 13px; color: var(--text-muted); flex: 1; }
+.bulk-actions { display: flex; gap: 6px; }
+.bulk-action-btn {
+  padding: 6px 11px;
+  font-size: 13px; font-weight: 500; font-family: inherit;
+  border: 1.5px solid var(--border-mid); border-radius: 8px;
+  background: var(--surface); color: var(--text);
+  cursor: pointer; transition: background 0.1s, opacity 0.1s;
+  white-space: nowrap;
+}
+.bulk-action-btn:hover { background: var(--surface-2); }
+.bulk-action-btn.danger { color: #DC2626; border-color: #DC2626; }
+.bulk-action-btn.danger:hover { background: #fef2f2; }
+.bulk-action-btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.bulk-action-btn.primary:hover { opacity: 0.85; background: var(--accent); }
+
+/* Bulk tag panel */
+.bulk-tag-panel { display: flex; flex-direction: column; gap: 8px; }
+.bulk-tag-panel.hidden { display: none; }
+.bulk-tag-input-wrap {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  background: var(--bg); border: 1.5px solid var(--border-mid);
+  border-radius: 8px; padding: 6px 10px; min-height: 38px; cursor: text;
+}
+.bulk-tag-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--border); border-radius: 4px;
+  padding: 2px 6px; font-size: 12px; color: var(--text-2); white-space: nowrap;
+}
+.bulk-tag-chip button {
+  background: none; border: none; padding: 0; margin: 0; line-height: 1;
+  cursor: pointer; color: var(--text-faint); font-size: 14px; display: flex;
+}
+.bulk-tag-input {
+  flex: 1; min-width: 80px; border: none; background: none; outline: none;
+  font-size: 13px; color: var(--text); font-family: inherit;
+}
+.bulk-tag-suggestions {
+  position: absolute; bottom: calc(100% + 4px); left: 0; right: 0;
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 4px; max-height: 160px; overflow-y: auto;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.1); z-index: 200;
+}
+.bulk-tag-suggestions.hidden { display: none; }
+.bulk-tag-suggestion-item {
+  display: block; width: 100%; padding: 7px 10px; text-align: left;
+  background: none; border: none; border-radius: 6px;
+  font-size: 13px; color: var(--text); cursor: pointer; font-family: inherit;
+}
+.bulk-tag-suggestion-item:hover { background: var(--surface-2); }
+.bulk-tag-panel-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Mobile: bigger touch targets for bulk bar */
+@media (max-width: 768px) {
+  .bulk-action-bar { padding: 12px 16px; }
+  .bulk-action-btn { padding: 8px 12px; font-size: 14px; min-height: 44px; }
+  .bulk-tag-input { font-size: 16px; } /* prevent iOS zoom on focus */
+  .note-checkbox { left: 16px; width: 22px; height: 22px; }
+  .notes-pane.select-mode .note-item { padding-left: 50px; }
+}
+
+/* ── Touch devices: no persistent hover, use :active for tap feedback ──────── */
 @media (hover: none) {
-  .tag-nav-item:hover  { background: none; }
-  .folder-row:hover    { background: none; }
+  /* Reset every hover rule that changes background or color — iOS sticks these
+     after a tap and they never clear without an explicit override */
+  .nav-item:hover        { background: none; color: var(--text-muted); }
+  .tag-nav-item:hover    { background: none; color: var(--text-muted); }
+  .folder-row:hover      { background: none; }
   .folder-row:hover .folder-kebab { opacity: 0; }
-  .nav-item:hover      { background: none; }
-  .tag-nav-item:active  { background: var(--border); }
-  .folder-row:active    { background: var(--border); }
-  .nav-item:active      { background: var(--border); }
+  .note-item:hover       { background: none; }
+  .note-item.active:hover { background: var(--bg); } /* keep active note visible */
+  .folder-list-item:hover { background: none; }
+  .icon-btn:hover        { background: none; color: var(--text-muted); }
+  .select-btn:hover      { color: var(--text-muted); }
+  .bulk-action-btn:hover { background: none; }
+  .bulk-action-btn.danger:hover  { background: none; }
+  .bulk-action-btn.primary:hover { background: var(--accent); opacity: 1; }
+
+  /* Momentary :active ripple — the only touch feedback */
+  .nav-item:active       { background: var(--border); }
+  .tag-nav-item:active   { background: var(--border); }
+  .folder-row:active     { background: var(--border); }
+  .note-item:active      { background: var(--surface-2); }
+  .folder-list-item:active { background: var(--surface-2); }
+}
+
+/* ── iPad landscape (large touch screen, 3-pane layout) ────────────────────── */
+/* hover: none  = touch device (no mouse)
+   min-width 769px = wide enough for the 3-pane desktop layout               */
+@media (hover: none) and (min-width: 769px) {
+  /* Bump touch targets to Apple HIG minimum (44pt) */
+  .nav-item     { min-height: 44px; }
+  .folder-row   { min-height: 44px; }
+  .tag-nav-item { min-height: 44px; }
+  .note-item    { padding: 14px 16px; }
+  .icon-btn     { width: 40px; height: 40px; }
+  .bulk-action-btn { min-height: 44px; padding: 0 14px; }
+
+  /* All 3 panes are visible simultaneously on iPad landscape, so active state
+     IS useful here — override the mobile rule that strips it */
+  .nav-item.active     { background: var(--border-mid); }
+  .folder-row.active   { background: var(--border-mid); }
+  .tag-nav-item.active { background: var(--border-mid); }
+
+  /* Hide floating format bar — iPadOS shows its own native text selection menu */
+  .floating-format-bar { display: none !important; }
 }
