@@ -10,7 +10,7 @@
 <link rel="manifest" href="/manifest.json">
 <title>Clippery</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23111'/><text x='16' y='23' text-anchor='middle' font-family='-apple-system,sans-serif' font-weight='600' font-size='19' fill='white'>C</text></svg>">
-<link rel="stylesheet" href="/static/style.css?v=7">
+<link rel="stylesheet" href="/static/style.css?v=10">
 </head>
 <body>
 
@@ -39,8 +39,10 @@
     </div>
 
     <nav class="sidebar-nav" id="sidebar-nav">
-      <div class="nav-section">
-        <button class="nav-item nav-all-notes" id="nav-all-notes" data-view="all">
+
+      <!-- Top nav: All Notes + Recents -->
+      <div class="sidebar-top-nav">
+        <button class="nav-item nav-all-notes" id="nav-all-notes">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           All Notes
           <span class="nav-count" id="all-notes-count"></span>
@@ -49,23 +51,47 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Recents
         </button>
+        <button class="nav-item nav-trash" id="nav-trash">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          Trash
+          <span class="nav-count" id="trash-count"></span>
+        </button>
       </div>
 
-      <div class="nav-section">
-        <div class="nav-section-header">
-          <span>Folders</span>
-        </div>
+      <!-- Timeline section -->
+      <div class="sidebar-section" id="timeline-section">
+        <button class="sidebar-section-toggle" id="timeline-toggle">
+          <svg class="section-chev" id="timeline-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          Timeline
+        </button>
+        <div id="timeline-list"></div>
+      </div>
+
+      <!-- Pinned Tags section -->
+      <div class="sidebar-section" id="pinned-tags-section">
+        <button class="sidebar-section-toggle" id="pinned-tags-toggle">
+          <svg class="section-chev" id="pinned-tags-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          Pinned
+        </button>
+        <div id="pinned-tags-list"></div>
+      </div>
+
+      <!-- All Tags section -->
+      <div class="sidebar-section" id="all-tags-section">
+        <button class="sidebar-section-toggle" id="all-tags-toggle">
+          <svg class="section-chev" id="all-tags-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          Tags
+          <span class="section-count" id="all-tags-count"></span>
+        </button>
+        <div id="all-tags-list"></div>
+      </div>
+
+      <!-- Folders section (hidden by default) -->
+      <div class="sidebar-section" id="folders-section">
+        <div class="sidebar-section-label">Folders</div>
         <div id="folder-tree"></div>
       </div>
 
-      <div class="nav-section" id="tags-section">
-        <button class="subfolder-section-toggle" id="tags-section-toggle">
-          <svg class="subfolder-toggle-chev open" id="tags-toggle-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          Tags
-          <span class="subfolder-section-count" id="tags-section-count"></span>
-        </button>
-        <div id="tags-list"></div>
-      </div>
     </nav>
   </aside>
   <div class="resize-handle" id="resize-sidebar-handle"></div>
@@ -98,6 +124,7 @@
             <button id="new-subfolder-option">New subfolder</button>
           </div>
         </div>
+        <button class="empty-trash-btn hidden" id="empty-trash-btn">Empty Trash</button>
         <button class="select-btn" id="select-mode-btn">Select</button>
         <button class="select-done-btn" id="select-done-btn">Done</button>
       </div>
@@ -153,6 +180,14 @@
     </div>
 
     <div class="editor-body" id="editor-body">
+      <div class="trash-banner hidden" id="trash-banner">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        <span class="trash-banner-label">In Trash</span>
+        <div class="trash-banner-actions">
+          <button class="trash-banner-restore" id="trash-restore-editor-btn">Restore</button>
+          <button class="trash-banner-delete" id="trash-perm-delete-editor-btn">Delete permanently</button>
+        </div>
+      </div>
       <input type="text" class="note-title-input" id="note-title" placeholder="Title" autocomplete="off" spellcheck="true">
       <div class="note-tags-row">
         <div class="tags-chips" id="tags-chips"></div>
@@ -206,41 +241,112 @@
   </div>
 </div>
 
-<!-- ── Settings modal ── -->
-<div class="modal-overlay hidden" id="settings-modal">
-  <div class="modal settings-modal">
-    <div class="modal-header">
-      <span>Settings</span>
-      <button class="icon-btn" id="settings-modal-close">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
+<!-- ── Settings view (full-screen, reuses same two-pane pattern as main app) ── -->
+<div class="settings-view hidden" id="settings-view" data-pane="list">
+
+  <div class="settings-topbar">
+    <button class="settings-topbar-back hidden" id="settings-topbar-back">
+      <svg width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 1 1 7.5 8 14"/></svg>
+      Settings
+    </button>
+    <span class="settings-topbar-title" id="settings-topbar-title">Settings</span>
+    <button class="icon-btn settings-topbar-close" id="settings-topbar-close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <div class="settings-body">
+
+    <!-- Left: category list (sidebar equivalent) -->
+    <div class="settings-cat-pane" id="settings-cat-pane">
+      <nav class="settings-cat-nav">
+        <button class="settings-cat-item active" data-section="general">
+          <span>General</span>
+          <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
+        </button>
+        <button class="settings-cat-item" data-section="sidebar">
+          <span>Sidebar</span>
+          <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
+        </button>
+        <button class="settings-cat-item" data-section="tags">
+          <span>Tags</span>
+          <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
+        </button>
+        <button class="settings-cat-item" data-section="data">
+          <span>Data</span>
+          <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
+        </button>
+      </nav>
     </div>
-    <div class="settings-body">
-      <div class="settings-section">
-        <div class="settings-section-title">Appearance</div>
-        <div class="settings-row">
-          <span>Dark mode</span>
-          <button class="toggle-switch" id="settings-dark-toggle"></button>
+
+    <!-- Right: section content (notes-pane equivalent) -->
+    <div class="settings-content-pane" id="settings-content-pane">
+
+      <!-- General panel -->
+      <div class="settings-panel" id="settings-panel-general">
+        <div class="settings-group">
+          <div class="settings-group-title">Appearance</div>
+          <div class="settings-group-rows">
+            <div class="settings-row">
+              <div class="settings-row-label">Dark Mode</div>
+              <button class="toggle-switch" id="settings-dark-toggle"></button>
+            </div>
+          </div>
         </div>
-        <div class="settings-row" style="margin-top:10px">
-          <span>List date</span>
-          <div class="date-display-picker" id="date-display-picker">
-            <button data-value="created">Created</button>
-            <button data-value="updated">Last edited</button>
+        <div class="settings-group">
+          <div class="settings-group-title">Notes List</div>
+          <div class="settings-group-rows">
+            <div class="settings-row">
+              <div>
+                <div class="settings-row-label">List date</div>
+                <div class="settings-row-desc">Which date shows on each note</div>
+              </div>
+              <div class="date-display-picker" id="date-display-picker">
+                <button data-value="created">Created</button>
+                <button data-value="updated">Last edited</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <div class="settings-section">
-        <div class="settings-section-title">Tags</div>
-        <div id="settings-tags-list"></div>
-      </div>
-      <div class="settings-section">
-        <div class="settings-section-title">Data</div>
-        <div class="settings-row">
-          <span>Export all notes</span>
-          <a href="/api/export" class="settings-export-link">Download JSON</a>
+
+      <!-- Sidebar panel -->
+      <div class="settings-panel hidden" id="settings-panel-sidebar">
+        <div class="settings-group">
+          <div class="settings-group-title">Navigation</div>
+          <div class="settings-group-rows">
+            <div class="settings-row">
+              <div>
+                <div class="settings-row-label">Show Folders</div>
+                <div class="settings-row-desc">Display folder tree in the sidebar</div>
+              </div>
+              <button class="toggle-switch" id="settings-folders-toggle"></button>
+            </div>
+          </div>
         </div>
       </div>
+
+      <!-- Tags panel -->
+      <div class="settings-panel hidden" id="settings-panel-tags">
+        <div class="settings-group">
+          <div class="settings-group-title">All Tags</div>
+          <div id="settings-tags-list"></div>
+        </div>
+      </div>
+
+      <!-- Data panel -->
+      <div class="settings-panel hidden" id="settings-panel-data">
+        <div class="settings-group">
+          <div class="settings-group-title">Export</div>
+          <div class="settings-group-rows">
+            <div class="settings-row">
+              <div class="settings-row-label">Export all notes</div>
+              <a href="/api/export" class="settings-export-link">Download JSON</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -277,6 +383,6 @@
 
 <div class="toast hidden" id="toast"></div>
 
-<script src="/static/app.js?v=7"></script>
+<script src="/static/app.js?v=11"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@ const state = {
   folders: [],
   tags: [],
   notes: [],
+  noteYears: [],        // [{ year, count }, …] sorted desc
   note: null,
   context: { type: "all", id: null, label: "All Notes" },
   searchQuery: "",
@@ -13,7 +14,14 @@ const state = {
   expandedFolders: new Set(JSON.parse(localStorage.getItem("expandedFolders") || "[]")),
   darkMode: localStorage.getItem("darkMode") === "true",
   subfoldersExpanded: localStorage.getItem("subfoldersExpanded") !== "false",
-  tagsExpanded: localStorage.getItem("tagsExpanded") !== "false",
+  // Sidebar section collapse states
+  timelineExpanded:   localStorage.getItem("timelineExpanded")   !== "false",
+  pinnedTagsExpanded: localStorage.getItem("pinnedTagsExpanded") !== "false",
+  allTagsExpanded:    localStorage.getItem("allTagsExpanded")    !== "false",
+  // Pinned tags (ordered array of tag names)
+  pinnedTags: JSON.parse(localStorage.getItem("pinnedTags") || "[]"),
+  // Folder visibility
+  showFolders: localStorage.getItem("showFolders") === "true",
   dirty: false,
   saving: false,
   syncVersion: "",
@@ -21,6 +29,7 @@ const state = {
   navHistory: [],
   selectMode: false,
   selectedNoteIds: new Set(),
+  trashCount: 0,
 };
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
@@ -28,7 +37,6 @@ const state = {
 const $ = id => document.getElementById(id);
 const appEl          = $("app");
 const folderTree     = $("folder-tree");
-const tagsList       = $("tags-list");
 const allNotesCount  = $("all-notes-count");
 const navAllNotes    = $("nav-all-notes");
 const paneTitle      = $("pane-title");
@@ -94,12 +102,48 @@ function updateDatePicker() {
   });
 }
 
+const SETTINGS_SECTION_LABELS = {
+  general: "General", sidebar: "Sidebar", tags: "Tags", data: "Data",
+};
+
+function openSettingsSection(section) {
+  document.querySelectorAll(".settings-cat-item").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.section === section);
+  });
+  document.querySelectorAll(".settings-panel").forEach(panel => {
+    panel.classList.toggle("hidden", panel.id !== `settings-panel-${section}`);
+  });
+  if (section === "tags") renderSettingsTags();
+  if (isMobile()) {
+    $("settings-view").dataset.pane = "detail";
+    $("settings-topbar-back").classList.remove("hidden");
+    $("settings-topbar-title").textContent = SETTINGS_SECTION_LABELS[section] || section;
+  }
+}
+
+function settingsBackToList() {
+  $("settings-view").dataset.pane = "list";
+  $("settings-topbar-back").classList.add("hidden");
+  $("settings-topbar-title").textContent = "Settings";
+}
+
+function closeSettings() {
+  $("settings-view").classList.add("hidden");
+}
+
 function openSettings() {
   $("settings-dark-toggle").classList.toggle("on", state.darkMode);
+  $("settings-folders-toggle").classList.toggle("on", state.showFolders);
   updateDatePicker();
-  renderSettingsTags();
-  $("settings-modal").classList.remove("hidden");
+  $("settings-view").dataset.pane = "list";
+  $("settings-topbar-back").classList.add("hidden");
+  $("settings-topbar-title").textContent = "Settings";
+  if (!isMobile()) openSettingsSection("general");
+  $("settings-view").classList.remove("hidden");
 }
+
+$("settings-topbar-back").addEventListener("click", settingsBackToList);
+$("settings-topbar-close").addEventListener("click", closeSettings);
 
 $("date-display-picker").addEventListener("click", e => {
   const btn = e.target.closest("[data-value]");
@@ -108,6 +152,11 @@ $("date-display-picker").addEventListener("click", e => {
   localStorage.setItem("dateDisplay", state.dateDisplay);
   updateDatePicker();
   renderNotesList();
+});
+
+// Settings category clicks
+document.querySelectorAll(".settings-cat-item").forEach(btn => {
+  btn.addEventListener("click", () => openSettingsSection(btn.dataset.section));
 });
 
 const PENCIL_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
@@ -126,8 +175,14 @@ async function doRenameTag(oldName) {
       state.context.label = "#" + newName;
       paneTitle.textContent = "#" + newName;
     }
+    // Update pinnedTags if the renamed tag was pinned
+    const pinIdx = state.pinnedTags.indexOf(oldName);
+    if (pinIdx !== -1) {
+      state.pinnedTags[pinIdx] = newName;
+      localStorage.setItem("pinnedTags", JSON.stringify(state.pinnedTags));
+    }
     state.tags = await api("GET", "/api/tags");
-    renderTagsList();
+    renderSidebar();
     await loadNotes();
     showToast(`Tag renamed to "#${newName}"`);
   }
@@ -186,8 +241,11 @@ function renderSettingsTags() {
       const tagName = btn.dataset.tag;
       if (!confirm(`Delete "#${tagName}" from all notes?`)) return;
       await api("DELETE", `/api/tags/${encodeURIComponent(tagName)}`);
+      // Remove from pinned if pinned
+      state.pinnedTags = state.pinnedTags.filter(t => t !== tagName);
+      localStorage.setItem("pinnedTags", JSON.stringify(state.pinnedTags));
       state.tags = await api("GET", "/api/tags");
-      renderTagsList();
+      renderSidebar();
       renderSettingsTags();
       await loadNotes();
       showToast(`Tag "#${tagName}" deleted`);
@@ -196,19 +254,133 @@ function renderSettingsTags() {
 }
 
 $("settings-btn").addEventListener("click", openSettings);
-$("settings-modal-close").addEventListener("click", () => $("settings-modal").classList.add("hidden"));
-$("settings-modal").addEventListener("click", e => {
-  if (e.target === $("settings-modal")) $("settings-modal").classList.add("hidden");
-});
 $("settings-dark-toggle").addEventListener("click", () => {
   applyDark(!state.darkMode);
   $("settings-dark-toggle").classList.toggle("on", state.darkMode);
 });
+$("settings-folders-toggle").addEventListener("click", () => {
+  state.showFolders = !state.showFolders;
+  localStorage.setItem("showFolders", state.showFolders);
+  $("settings-folders-toggle").classList.toggle("on", state.showFolders);
+  updateFoldersVisibility();
+});
 
-$("tags-section-toggle").addEventListener("click", () => {
-  state.tagsExpanded = !state.tagsExpanded;
-  localStorage.setItem("tagsExpanded", state.tagsExpanded);
-  renderTagsList();
+// ── Sidebar rendering ─────────────────────────────────────────────────────────
+
+const PIN_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
+const PIN_OUTLINE_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
+
+function pinTag(tagName) {
+  if (state.pinnedTags.includes(tagName)) return;
+  if (state.pinnedTags.length >= 5) { showToast("Max 5 pinned tags"); return; }
+  state.pinnedTags.push(tagName);
+  localStorage.setItem("pinnedTags", JSON.stringify(state.pinnedTags));
+  renderSidebar();
+}
+
+function unpinTag(tagName) {
+  state.pinnedTags = state.pinnedTags.filter(t => t !== tagName);
+  localStorage.setItem("pinnedTags", JSON.stringify(state.pinnedTags));
+  renderSidebar();
+}
+
+function renderTimeline() {
+  const chev = $("timeline-chev");
+  const list = $("timeline-list");
+  if (chev) chev.classList.toggle("open", state.timelineExpanded);
+  list.innerHTML = "";
+  if (!state.timelineExpanded || !state.noteYears.length) return;
+  state.noteYears.forEach(({ year, count }) => {
+    const btn = document.createElement("button");
+    btn.className = "year-nav-item" + (state.context.type === "year" && state.context.id === year ? " active" : "");
+    btn.innerHTML = `${year}<span class="year-note-count">${count}</span>`;
+    btn.addEventListener("click", () => navigateToYear(year));
+    list.appendChild(btn);
+  });
+}
+
+function renderPinnedTags() {
+  const chev = $("pinned-tags-chev");
+  const list = $("pinned-tags-list");
+  if (chev) chev.classList.toggle("open", state.pinnedTagsExpanded);
+  list.innerHTML = "";
+  if (!state.pinnedTagsExpanded) return;
+  const pinned = state.pinnedTags.filter(name => state.tags.some(t => t.name === name));
+  if (!pinned.length) {
+    list.innerHTML = `<div class="sidebar-empty">No pinned tags yet</div>`;
+    return;
+  }
+  pinned.forEach(name => {
+    const tag = state.tags.find(t => t.name === name);
+    if (!tag) return;
+    const isActive = state.context.type === "tag" && state.context.id === name;
+    const btn = document.createElement("button");
+    btn.className = "tag-nav-item" + (isActive ? " active" : "");
+    btn.innerHTML = `<span class="tag-hash">#</span>${esc(name)}<span class="tag-right"><button class="tag-pin-btn pinned" title="Unpin">${PIN_SVG}</button><span class="tag-count">${tag.count}</span></span>`;
+    btn.addEventListener("click", () => navigateToTag(name));
+    btn.querySelector(".tag-pin-btn").addEventListener("click", e => {
+      e.stopPropagation();
+      unpinTag(name);
+    });
+    list.appendChild(btn);
+  });
+}
+
+function renderAllTags() {
+  const chev = $("all-tags-chev");
+  const list = $("all-tags-list");
+  const countEl = $("all-tags-count");
+  const unpinned = state.tags.filter(t => !state.pinnedTags.includes(t.name));
+  if (countEl) countEl.textContent = unpinned.length || "";
+  if (chev) chev.classList.toggle("open", state.allTagsExpanded);
+  list.innerHTML = "";
+  const section = $("all-tags-section");
+  if (section) section.style.display = !state.tags.length ? "none" : "";
+  if (!state.allTagsExpanded || !unpinned.length) return;
+  unpinned.forEach(tag => {
+    const isActive = state.context.type === "tag" && state.context.id === tag.name;
+    const btn = document.createElement("button");
+    btn.className = "tag-nav-item" + (isActive ? " active" : "");
+    btn.innerHTML = `<span class="tag-hash">#</span>${esc(tag.name)}<span class="tag-right"><button class="tag-pin-btn" title="Pin">${PIN_OUTLINE_SVG}</button><span class="tag-count">${tag.count}</span></span>`;
+    btn.addEventListener("click", () => navigateToTag(tag.name));
+    btn.querySelector(".tag-pin-btn").addEventListener("click", e => {
+      e.stopPropagation();
+      pinTag(tag.name);
+    });
+    list.appendChild(btn);
+  });
+}
+
+function renderSidebar() {
+  renderTimeline();
+  renderPinnedTags();
+  renderAllTags();
+  renderFolderTree();
+  updateFoldersVisibility();
+}
+
+function updateFoldersVisibility() {
+  const section = $("folders-section");
+  const folderBtn = $("new-folder-btn");
+  if (section) section.style.display = state.showFolders ? "" : "none";
+  if (folderBtn) folderBtn.style.display = state.showFolders ? "" : "none";
+}
+
+// Toggle handlers for sidebar sections
+$("timeline-toggle").addEventListener("click", () => {
+  state.timelineExpanded = !state.timelineExpanded;
+  localStorage.setItem("timelineExpanded", state.timelineExpanded);
+  renderTimeline();
+});
+$("pinned-tags-toggle").addEventListener("click", () => {
+  state.pinnedTagsExpanded = !state.pinnedTagsExpanded;
+  localStorage.setItem("pinnedTagsExpanded", state.pinnedTagsExpanded);
+  renderPinnedTags();
+});
+$("all-tags-toggle").addEventListener("click", () => {
+  state.allTagsExpanded = !state.allTagsExpanded;
+  localStorage.setItem("allTagsExpanded", state.allTagsExpanded);
+  renderAllTags();
 });
 
 // ── Mobile view ───────────────────────────────────────────────────────────────
@@ -216,8 +388,6 @@ $("tags-section-toggle").addEventListener("click", () => {
 function setMobileView(view) {
   state.mobileView = view;
   appEl.dataset.view = view;
-  // On mobile, blur the editor when leaving to dismiss the iOS keyboard.
-  // contenteditable is never changed — iOS only shows the toolbar when focused.
   if (window.innerWidth <= 768 && view !== 'editor') {
     noteBody.blur();
   }
@@ -231,7 +401,7 @@ $("notes-back-btn").addEventListener("click", () => {
     if (prev.type === "all")     setActiveNav(navAllNotes);
     else if (prev.type === "recents") setActiveNav(navRecents);
     else setActiveNav(null);
-    renderFolderTree();
+    renderSidebar();
     loadNotes();
   } else {
     setMobileView("sidebar");
@@ -254,7 +424,7 @@ let swipeStartX = 0, swipeStartY = 0, swipeActive = false;
 appEl.addEventListener("touchstart", e => {
   swipeStartX = e.touches[0].clientX;
   swipeStartY = e.touches[0].clientY;
-  swipeActive = swipeStartX < 32; // only trigger from left edge
+  swipeActive = swipeStartX < 32;
 }, { passive: true });
 
 appEl.addEventListener("touchend", e => {
@@ -283,15 +453,13 @@ searchInput.addEventListener("input", () => {
       state.context = { type: "search", id: null, label: "Search results" };
       paneTitle.textContent = "Search results";
       setActiveNav(null);
-      renderFolderTree();
-      renderTagsList();
+      renderSidebar();
       setMobileView("notes");
     } else {
       state.context = { type: "all", id: null, label: "All Notes" };
       paneTitle.textContent = "All Notes";
       setActiveNav(navAllNotes);
-      renderFolderTree();
-      renderTagsList();
+      renderSidebar();
     }
     loadNotes();
   }, 280);
@@ -363,11 +531,8 @@ function renderFolderNode(node, depth = 0) {
   const row = document.createElement("div");
   row.className = "folder-row" + (isActive ? " active" : "");
   row.dataset.folderId = node.id;
-
-  // Indent via padding
   row.style.paddingLeft = (depth * 12) + "px";
 
-  // Chevron / spacer
   if (hasChildren) {
     const toggle = document.createElement("button");
     toggle.className = "folder-toggle" + (isOpen ? " open" : "");
@@ -389,14 +554,12 @@ function renderFolderNode(node, depth = 0) {
     row.appendChild(spacer);
   }
 
-  // Folder name button
   const btn = document.createElement("button");
   btn.className = "folder-btn";
   btn.innerHTML = FOLDER_SVG + `<span class="folder-name">${esc(node.name)}</span>`;
   btn.addEventListener("click", () => navigateToFolder(node));
   row.appendChild(btn);
 
-  // 3-dot kebab (hover on desktop, always visible on mobile)
   const kebab = document.createElement("button");
   kebab.className = "folder-kebab";
   kebab.title = "Folder options";
@@ -423,27 +586,6 @@ function renderFolderTree() {
   tree.forEach(node => folderTree.appendChild(renderFolderNode(node)));
 }
 
-function renderTagsList() {
-  tagsList.innerHTML = "";
-  if (!state.tags.length) {
-    $("tags-section").style.display = "none";
-    return;
-  }
-  $("tags-section").style.display = "";
-  const chev = $("tags-toggle-chev");
-  if (chev) chev.classList.toggle("open", state.tagsExpanded);
-  const countEl = $("tags-section-count");
-  if (countEl) countEl.textContent = state.tags.length;
-  if (!state.tagsExpanded) return;
-  state.tags.forEach(tag => {
-    const btn = document.createElement("button");
-    btn.className = "tag-nav-item" + (state.context.type === "tag" && state.context.id === tag.name ? " active" : "");
-    btn.innerHTML = `<span class="tag-hash">#</span>${esc(tag.name)}<span class="tag-count">${tag.count}</span>`;
-    btn.addEventListener("click", () => navigateToTag(tag.name));
-    tagsList.appendChild(btn);
-  });
-}
-
 // ── Navigation ────────────────────────────────────────────────────────────────
 
 function setActiveNav(el) {
@@ -462,8 +604,7 @@ function navigateToFolder(folder, pushHistory = false) {
   state.expandedFolders.add(folder.id);
   localStorage.setItem("expandedFolders", JSON.stringify([...state.expandedFolders]));
   setActiveNav(null);
-  renderFolderTree();
-  renderTagsList();
+  renderSidebar();
   loadNotes();
   setMobileView("notes");
 }
@@ -473,8 +614,29 @@ function navigateToTag(tagName) {
   state.context = { type: "tag", id: tagName, label: "#" + tagName };
   paneTitle.textContent = "#" + tagName;
   setActiveNav(null);
-  renderFolderTree();
-  renderTagsList();
+  renderSidebar();
+  loadNotes();
+  setMobileView("notes");
+}
+
+function navigateToYear(year) {
+  state.navHistory = [];
+  state.context = { type: "year", id: year, label: String(year) };
+  paneTitle.textContent = String(year);
+  setActiveNav(null);
+  renderSidebar();
+  loadNotes();
+  setMobileView("notes");
+}
+
+function navigateToTrash() {
+  if (state.dirty) saveNoteNow();
+  if (state.selectMode) exitSelectMode();
+  state.navHistory = [];
+  state.context = { type: "trash", id: null, label: "Trash" };
+  paneTitle.textContent = "Trash";
+  setActiveNav($("nav-trash"));
+  renderSidebar();
   loadNotes();
   setMobileView("notes");
 }
@@ -486,8 +648,7 @@ navAllNotes.addEventListener("click", () => {
   searchInput.value = "";
   paneTitle.textContent = "All Notes";
   setActiveNav(navAllNotes);
-  renderFolderTree();
-  renderTagsList();
+  renderSidebar();
   loadNotes();
   setMobileView("notes");
 });
@@ -499,34 +660,54 @@ navRecents.addEventListener("click", () => {
   searchInput.value = "";
   paneTitle.textContent = "Recents";
   setActiveNav(navRecents);
-  renderFolderTree();
-  renderTagsList();
+  renderSidebar();
   loadNotes();
   setMobileView("notes");
 });
 
+$("nav-trash").addEventListener("click", navigateToTrash);
+
 // ── Load data ─────────────────────────────────────────────────────────────────
 
 async function loadAll() {
-  const [folders, tags] = await Promise.all([
+  const [folders, tags, all, trash] = await Promise.all([
     api("GET", "/api/folders"),
     api("GET", "/api/tags"),
+    api("GET", "/api/notes"),
+    api("GET", "/api/trash"),
   ]);
   state.folders = folders;
   state.tags = tags;
-  renderFolderTree();
-  renderTagsList();
-  await loadNotes();
-
-  // all notes count
-  const all = await api("GET", "/api/notes");
   allNotesCount.textContent = all.length || "";
+
+  state.trashCount = trash.length;
+  const trashCountEl = $("trash-count");
+  if (trashCountEl) trashCountEl.textContent = trash.length || "";
+
+  // Compute years + counts from all notes
+  const yearCounts = {};
+  all.forEach(n => {
+    const y = new Date(n.created_at).getFullYear();
+    yearCounts[y] = (yearCounts[y] || 0) + 1;
+  });
+  state.noteYears = Object.entries(yearCounts)
+    .sort((a, b) => b[0] - a[0])
+    .map(([year, count]) => ({ year: parseInt(year), count }));
+
+  renderSidebar();
+  await loadNotes();
 }
 
 async function loadNotes() {
+  if (state.context.type === "trash") {
+    state.notes = await api("GET", "/api/trash");
+    renderNotesList();
+    return;
+  }
   const params = new URLSearchParams();
   if (state.context.type === "folder") params.set("folder_id", state.context.id);
   if (state.context.type === "tag")    params.set("tag", state.context.id);
+  if (state.context.type === "year")   params.set("year", state.context.id);
   if (state.searchQuery)               params.set("q", state.searchQuery);
 
   state.notes = await api("GET", `/api/notes?${params}`);
@@ -636,12 +817,59 @@ function esc(s) {
 const CHEV_RIGHT_SVG = `<svg class="folder-list-item-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
 
 function renderNotesList() {
-  // Child subfolders (only when inside a specific folder)
+  // Toggle pane context class for trash-specific UI hiding
+  notesPaneEl.dataset.ctx = state.context.type === "trash" ? "trash" : "";
+
+  // ── Trash context ──────────────────────────────────────────────────────
+  if (state.context.type === "trash") {
+    const trash = state.notes;
+    if (!trash.length) {
+      notesList.innerHTML = `<div class="notes-empty">Trash is empty.</div>`;
+      return;
+    }
+    const now = Date.now();
+    notesList.innerHTML = trash.map(n => {
+      const deletedAt = new Date(n.deleted_at);
+      const daysGone = Math.floor((now - deletedAt) / 86400000);
+      const daysLeft = Math.max(0, 30 - daysGone);
+      const deletedStr = daysGone === 0 ? "Deleted today" : `Deleted ${daysGone}d ago`;
+      const leftStr = daysLeft === 0 ? "expires soon" : `${daysLeft}d left`;
+      const preview = (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+      const isActive = state.note && state.note.id === n.id;
+      return `
+        <div class="note-item trash-note-item${isActive ? " active" : ""}" data-note-id="${n.id}">
+          <div class="note-item-title${n.title ? "" : " untitled"}">${n.title ? esc(n.title) : "Untitled"}</div>
+          ${preview ? `<div class="note-item-preview">${esc(preview)}</div>` : ""}
+          <div class="trash-note-footer">
+            <span class="trash-note-time">${deletedStr} · ${leftStr}</span>
+            <div class="trash-note-actions">
+              <button class="trash-restore-btn" data-id="${n.id}">Restore</button>
+              <button class="trash-delete-btn" data-id="${n.id}">Delete</button>
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+
+    notesList.querySelectorAll(".trash-note-item").forEach(el => {
+      el.addEventListener("click", e => {
+        if (e.target.closest(".trash-note-actions")) return;
+        const n = state.notes.find(n => n.id === el.dataset.noteId);
+        if (n) openNote(n);
+      });
+    });
+    notesList.querySelectorAll(".trash-restore-btn").forEach(btn => {
+      btn.addEventListener("click", e => { e.stopPropagation(); restoreNote(btn.dataset.id); });
+    });
+    notesList.querySelectorAll(".trash-delete-btn").forEach(btn => {
+      btn.addEventListener("click", e => { e.stopPropagation(); permanentDeleteNote(btn.dataset.id); });
+    });
+    return;
+  }
+
   const subfolders = state.context.type === "folder"
     ? state.folders.filter(f => f.parent_id === state.context.id).sort((a,b) => a.name.localeCompare(b.name))
     : [];
 
-  // Notes filtered by pane search + sorted
   let notes = sortedNotes();
   if (state.paneSearchQuery) {
     const q = state.paneSearchQuery.toLowerCase();
@@ -785,14 +1013,20 @@ function openNote(note) {
   renderNoteDates(note);
   setAutosave("");
   state.dirty = false;
+
+  const inTrash = !!note.deleted_at;
+  $("trash-banner").classList.toggle("hidden", !inTrash);
+  noteTitle.readOnly = inTrash;
+  noteBody.contentEditable = inTrash ? "false" : "true";
+  tagInput.disabled = inTrash;
+
   showEditorBody();
   renderNotesList();
   requestAnimationFrame(() => {
-    // Set body AFTER editor-body is visible — iOS doesn't repaint innerHTML set on hidden elements
     noteBody.innerHTML = bodyToHtml(note.body || "");
     bodyPlaceholder.classList.toggle("hidden", (note.body || "").trim().length > 0);
     setMobileView("editor");
-    if (!isMobile()) {
+    if (!isMobile() && !inTrash) {
       noteBody.focus();
       const sel = window.getSelection();
       if (sel && noteBody.firstChild) {
@@ -875,9 +1109,7 @@ tagInput.addEventListener("input", () => {
 tagInput.addEventListener("keydown", e => {
   if (e.key === "Enter" || e.key === ",") {
     e.preventDefault();
-    const first = tagSuggestionsEl.querySelector(".tag-suggestion-item");
     const val = tagInput.value.replace(/,/g, "").trim().toLowerCase();
-    // If typed value exactly matches a suggestion, use it; otherwise create new
     addTag(val);
   }
   if (e.key === "Escape") { hideSuggestions(); tagInput.value = ""; }
@@ -917,7 +1149,7 @@ let saveTimer;
 function setAutosave(msg) { autosaveEl.textContent = msg; }
 
 function scheduleSave() {
-  if (!state.note) return;
+  if (!state.note || state.note.deleted_at) return;
   state.dirty = true;
   setAutosave("Editing…");
   clearTimeout(saveTimer);
@@ -935,7 +1167,6 @@ async function saveNoteNow() {
     return;
   }
 
-  state.dirty = false;
   state.saving = true;
   setAutosave("Saving…");
   try {
@@ -958,6 +1189,7 @@ async function saveNoteNow() {
       const idx = state.notes.findIndex(n => n.id === updated.id);
       if (idx !== -1) state.notes[idx] = updated;
     }
+    state.dirty = false;
     state.note = updated;
     renderNotesList();
     renderNoteDates(updated);
@@ -965,7 +1197,6 @@ async function saveNoteNow() {
     setTimeout(() => { if (autosaveEl.textContent === "Saved") setAutosave(""); }, 2000);
   } catch(e) {
     setAutosave("Save failed");
-    state.dirty = true;
   }
   state.saving = false;
 }
@@ -988,14 +1219,12 @@ noteBody.addEventListener("paste", e => {
 // ── Editor keyboard shortcuts ─────────────────────────────────────────────────
 
 noteBody.addEventListener("keydown", e => {
-  // Tab → indent 2 spaces
   if (e.key === "Tab") {
     e.preventDefault();
     document.execCommand('insertText', false, '  ');
     return;
   }
 
-  // Formatting shortcuts
   if (e.metaKey || e.ctrlKey) {
     const k = e.key.toLowerCase();
     if (!e.shiftKey) {
@@ -1006,7 +1235,6 @@ noteBody.addEventListener("keydown", e => {
     if (e.shiftKey && k === "s") { e.preventDefault(); applyFormat("strike"); return; }
   }
 
-  // Cmd/Ctrl+S → save
   if ((e.metaKey || e.ctrlKey) && e.key === "s") {
     e.preventDefault();
     saveNoteNow();
@@ -1102,12 +1330,10 @@ $("editor-save-btn").addEventListener("click", async () => {
   if (!state.note) showEditorEmpty();
   await loadNotes();
   state.tags = await api("GET", "/api/tags");
-  renderTagsList();
+  renderSidebar();
 });
 
 // ── New note ──────────────────────────────────────────────────────────────────
-
-// new-note-btn handled in "New item dropdown" section above
 
 async function newNote() {
   if (state.dirty) await saveNoteNow();
@@ -1129,18 +1355,76 @@ async function newNote() {
   });
 }
 
+// ── Trash helpers ─────────────────────────────────────────────────────────────
+
+async function restoreNote(noteId) {
+  const restored = await api("POST", `/api/notes/${noteId}/restore`);
+  state.notes = state.notes.filter(n => n.id !== noteId);
+  if (state.note && state.note.id === noteId) {
+    state.note = null;
+    showEditorEmpty();
+  }
+  renderNotesList();
+  state.trashCount = Math.max(0, state.trashCount - 1);
+  $("trash-count").textContent = state.trashCount || "";
+  const all = await api("GET", "/api/notes");
+  allNotesCount.textContent = all.length || "";
+  const yearCounts = {};
+  all.forEach(n => { const y = new Date(n.created_at).getFullYear(); yearCounts[y] = (yearCounts[y] || 0) + 1; });
+  state.noteYears = Object.entries(yearCounts).sort((a,b) => b[0]-a[0]).map(([year,count]) => ({ year: parseInt(year), count }));
+  renderTimeline();
+  showToast("Note restored");
+}
+
+async function permanentDeleteNote(noteId, skipConfirm = false) {
+  const note = state.notes.find(n => n.id === noteId);
+  const title = note?.title || "Untitled";
+  if (!skipConfirm && !confirm(`Permanently delete "${title}"? This cannot be undone.`)) return;
+  await api("DELETE", `/api/trash/${noteId}`);
+  state.notes = state.notes.filter(n => n.id !== noteId);
+  if (state.note && state.note.id === noteId) {
+    state.note = null;
+    showEditorEmpty();
+  }
+  renderNotesList();
+  state.trashCount = Math.max(0, state.trashCount - 1);
+  $("trash-count").textContent = state.trashCount || "";
+  showToast("Permanently deleted");
+}
+
+$("trash-restore-editor-btn").addEventListener("click", () => {
+  if (state.note) restoreNote(state.note.id);
+});
+
+$("trash-perm-delete-editor-btn").addEventListener("click", () => {
+  if (state.note) permanentDeleteNote(state.note.id);
+});
+
+$("empty-trash-btn").addEventListener("click", async () => {
+  if (!state.notes.length) return;
+  if (!confirm(`Permanently delete all ${state.notes.length} notes in Trash? This cannot be undone.`)) return;
+  const ids = state.notes.map(n => n.id);
+  await Promise.all(ids.map(id => api("DELETE", `/api/trash/${id}`)));
+  state.notes = [];
+  state.note = null;
+  state.trashCount = 0;
+  $("trash-count").textContent = "";
+  renderNotesList();
+  showEditorEmpty();
+  showToast("Trash emptied");
+});
+
 // ── Delete note ───────────────────────────────────────────────────────────────
 
 $("delete-note-btn").addEventListener("click", async () => {
   if (!state.note) return;
   if (state.note.id === null) {
-    // Never saved — just discard
     overflowMenu.classList.add("hidden");
     state.note = null; state.dirty = false; clearTimeout(saveTimer);
     renderNotesList(); showEditorEmpty(); setMobileView("notes");
     return;
   }
-  if (!confirm(`Delete "${state.note.title || "Untitled"}"?`)) return;
+  if (!confirm(`Move "${state.note.title || "Untitled"}" to Trash?`)) return;
   overflowMenu.classList.add("hidden");
   await api("DELETE", `/api/notes/${state.note.id}`);
   state.notes = state.notes.filter(n => n.id !== state.note.id);
@@ -1151,9 +1435,16 @@ $("delete-note-btn").addEventListener("click", async () => {
   showEditorEmpty();
   setMobileView("notes");
   state.tags = await api("GET", "/api/tags");
-  renderTagsList();
-  allNotesCount.textContent = (await api("GET", "/api/notes")).length || "";
-  showToast("Note deleted");
+  state.trashCount++;
+  $("trash-count").textContent = state.trashCount || "";
+  renderSidebar();
+  const all = await api("GET", "/api/notes");
+  allNotesCount.textContent = all.length || "";
+  const yearCounts = {};
+  all.forEach(n => { const y = new Date(n.created_at).getFullYear(); yearCounts[y] = (yearCounts[y] || 0) + 1; });
+  state.noteYears = Object.entries(yearCounts).sort((a,b) => b[0]-a[0]).map(([year,count]) => ({ year: parseInt(year), count }));
+  renderTimeline();
+  showToast("Moved to Trash");
 });
 
 // ── Multi-select ──────────────────────────────────────────────────────────────
@@ -1183,15 +1474,17 @@ function exitSelectMode() {
 async function bulkDelete() {
   const ids = [...state.selectedNoteIds];
   if (!ids.length) return;
-  if (!confirm(`Delete ${ids.length} note${ids.length !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+  if (!confirm(`Move ${ids.length} note${ids.length !== 1 ? "s" : ""} to Trash?`)) return;
   await Promise.all(ids.map(id => api("DELETE", `/api/notes/${id}`)));
   if (state.note && ids.includes(state.note.id)) {
     state.note = null;
     showEditorEmpty();
   }
+  state.trashCount += ids.length;
+  $("trash-count").textContent = state.trashCount || "";
   exitSelectMode();
   await loadNotes();
-  showToast(`Deleted ${ids.length} note${ids.length !== 1 ? "s" : ""}`);
+  showToast(`Moved ${ids.length} note${ids.length !== 1 ? "s" : ""} to Trash`);
 }
 
 async function bulkMove(folderId) {
@@ -1326,7 +1619,6 @@ function openMoveModal() {
   $("move-modal-title").textContent = "Move to folder";
   list.innerHTML = "";
 
-  // Root option — no "current" highlight in bulk mode (notes may have mixed folders)
   const rootBtn = makeMoveFolderOption(null, "No folder (root)", !state.selectMode && state.note?.folder_id === null);
   list.appendChild(rootBtn);
 
@@ -1350,7 +1642,6 @@ function openFolderMoveModal(node) {
 
   const excluded = getDescendantIds(node.id);
 
-  // Top-level option
   const rootBtn = makeMoveFolderOption(null, "Top level (no parent)", node.parent_id === null);
   list.appendChild(rootBtn);
 
@@ -1415,7 +1706,7 @@ overflowMenu.addEventListener("click", e => e.stopPropagation());
 
 // ── Folder modal ──────────────────────────────────────────────────────────────
 
-let folderModalMode = null; // { action: "new"|"rename", parentId?, folder? }
+let folderModalMode = null;
 
 function openFolderModal(folder = null, parentId = null) {
   folderModalMode = folder ? { action: "rename", folder } : { action: "new", parentId };
@@ -1431,7 +1722,7 @@ $("compose-btn").addEventListener("click", () => {
   state.context = { type: "all", id: null, label: "All Notes" };
   paneTitle.textContent = "All Notes";
   setActiveNav(navAllNotes);
-  renderFolderTree();
+  renderSidebar();
   loadNotes().then(() => newNote());
 });
 $("new-folder-btn").addEventListener("click", () => openFolderModal());
@@ -1500,12 +1791,17 @@ setInterval(async () => {
     const { version } = await api("GET", "/api/sync");
     if (version && version !== state.syncVersion) {
       state.syncVersion = version;
-      // Don't reload while actively editing
-      if (!state.dirty) {
+      // Don't reload while actively editing or saving
+      if (!state.dirty && !state.saving) {
         await loadNotes();
         state.tags = await api("GET", "/api/tags");
-        renderTagsList();
-        allNotesCount.textContent = (await api("GET", "/api/notes")).length || "";
+        renderSidebar();
+        const all = await api("GET", "/api/notes");
+        allNotesCount.textContent = all.length || "";
+        const yearCounts = {};
+        all.forEach(n => { const y = new Date(n.created_at).getFullYear(); yearCounts[y] = (yearCounts[y] || 0) + 1; });
+        state.noteYears = Object.entries(yearCounts).sort((a,b) => b[0]-a[0]).map(([year,count]) => ({ year: parseInt(year), count }));
+        renderTimeline();
       }
     }
   } catch(_) {}
@@ -1558,11 +1854,19 @@ function setupResizeHandle(handle, which) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+window.addEventListener("beforeunload", e => {
+  if (state.dirty || state.saving) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
 applyDark(state.darkMode);
 applyPaneWidths();
 setupResizeHandle($("resize-sidebar-handle"), "sidebar");
 setupResizeHandle($("resize-notes-handle"), "notes");
 updateSortUI();
+updateFoldersVisibility();
 navAllNotes.classList.add("active");
 showEditorEmpty();
 setMobileView("sidebar");

@@ -83,6 +83,7 @@ def list_notes():
         folder_id=request.args.get("folder_id"),
         tag=request.args.get("tag"),
         query=request.args.get("q"),
+        year=request.args.get("year"),
     ))
 
 
@@ -125,6 +126,30 @@ def update_note(note_id):
 @requires_auth
 def delete_note(note_id):
     db.delete_note(note_id)
+    return jsonify({"ok": True})
+
+
+# ── Trash ──────────────────────────────────────────────────────────────────────
+
+@app.route("/api/trash", methods=["GET"])
+@requires_auth
+def list_trash():
+    return jsonify(db.get_trash())
+
+
+@app.route("/api/notes/<note_id>/restore", methods=["POST"])
+@requires_auth
+def restore_note(note_id):
+    result = db.restore_note(note_id)
+    if not result:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(result)
+
+
+@app.route("/api/trash/<note_id>", methods=["DELETE"])
+@requires_auth
+def permanent_delete(note_id):
+    db.permanent_delete(note_id)
     return jsonify({"ok": True})
 
 

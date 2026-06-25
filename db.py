@@ -15,7 +15,7 @@ def get_conn():
     return conn
 
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 
 def init_db():
@@ -63,12 +63,12 @@ def init_db():
             else:
                 conn.execute("UPDATE schema_version SET version = 1")
 
-        # ── Add future migrations here ────────────────────────────────────────
-        # if current < 2:
-        #     conn.execute("ALTER TABLE notes ADD COLUMN starred INTEGER DEFAULT 0")
-        #     conn.execute("UPDATE schema_version SET version = 2")
+        if current < 2:
+            conn.execute("ALTER TABLE notes ADD COLUMN deleted_at TEXT DEFAULT NULL")
+            conn.execute("UPDATE schema_version SET version = 2")
 
     conn.close()
+    purge_old_trash()
 
 
 def now():
@@ -141,11 +141,11 @@ def _note_tags(conn, note_id):
     return [r["name"] for r in rows]
 
 
-def get_notes(folder_id=None, tag=None, query=None):
+def get_notes(folder_id=None, tag=None, query=None, year=None):
     conn = get_conn()
     sql = "SELECT DISTINCT n.* FROM notes n"
     params = []
-    joins, wheres = [], []
+    joins, wheres = [], ["n.deleted_at IS NULL"]
 
     if tag:
         joins.append("JOIN note_tags nt ON n.id=nt.note_id JOIN tags t ON nt.tag_id=t.id")
@@ -157,6 +157,10 @@ def get_notes(folder_id=None, tag=None, query=None):
     elif folder_id:
         wheres.append("n.folder_id=?")
         params.append(folder_id)
+
+    if year:
+        wheres.append("strftime('%Y', n.created_at) = ?")
+        params.append(str(year))
 
     if query:
         wheres.append("(n.title LIKE ? OR n.body LIKE ?)")
@@ -250,9 +254,61 @@ def update_note(note_id, **kwargs):
 
 
 def delete_note(note_id):
+    """Soft delete — moves to trash. Use permanent_delete() to hard-delete."""
+    conn = get_conn()
+    with conn:
+        conn.execute(
+            "UPDATE notes SET deleted_at=?, updated_at=? WHERE id=? AND deleted_at IS NULL",
+            (now(), now(), note_id)
+        )
+    conn.close()
+
+
+def get_trash():
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"
+    ).fetchall()
+    notes = []
+    for row in rows:
+        n = dict(row)
+        n["tags"] = _note_tags(conn, n["id"])
+        notes.append(n)
+    conn.close()
+    return notes
+
+
+def restore_note(note_id):
+    conn = get_conn()
+    with conn:
+        conn.execute(
+            "UPDATE notes SET deleted_at=NULL, updated_at=? WHERE id=?",
+            (now(), note_id)
+        )
+    row = conn.execute("SELECT * FROM notes WHERE id=?", (note_id,)).fetchone()
+    if not row:
+        conn.close()
+        return None
+    n = dict(row)
+    n["tags"] = _note_tags(conn, note_id)
+    conn.close()
+    return n
+
+
+def permanent_delete(note_id):
     conn = get_conn()
     with conn:
         conn.execute("DELETE FROM notes WHERE id=?", (note_id,))
+    conn.close()
+
+
+def purge_old_trash():
+    conn = get_conn()
+    with conn:
+        conn.execute(
+            "DELETE FROM notes WHERE deleted_at IS NOT NULL "
+            "AND deleted_at < datetime('now', '-30 days')"
+        )
     conn.close()
 
 
@@ -302,7 +358,7 @@ def export_all():
     conn = get_conn()
     conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
     folders = [dict(r) for r in conn.execute("SELECT * FROM folders ORDER BY name COLLATE NOCASE").fetchall()]
-    note_rows = conn.execute("SELECT * FROM notes ORDER BY created_at").fetchall()
+    note_rows = conn.execute("SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY created_at").fetchall()
     notes = []
     for row in note_rows:
         n = dict(row)
