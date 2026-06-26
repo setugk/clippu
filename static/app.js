@@ -463,28 +463,42 @@ appEl.addEventListener("touchend", e => {
   }
 }, { passive: true });
 
-// ── Search ────────────────────────────────────────────────────────────────────
+// ── Search (runs on Enter; clear button resets) ────────────────────────────────
 
-let searchTimer;
-searchInput.addEventListener("input", () => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    state.searchQuery = searchInput.value.trim();
-    if (state.searchQuery) {
-      state.context = { type: "search", id: null, label: "Search results" };
-      paneTitle.textContent = "Search results";
-      setActiveNav(null);
-      renderSidebar();
-      setMobileView("notes");
-    } else {
-      state.context = { type: "all", id: null, label: "All Notes" };
-      paneTitle.textContent = "All Notes";
-      setActiveNav(navAllNotes);
-      renderSidebar();
-    }
-    loadNotes();
-  }, 280);
+function updateSearchClear() {
+  $("search-clear").classList.toggle("hidden", !searchInput.value);
+}
+
+function runSearch() {
+  const q = searchInput.value.trim();
+  state.searchQuery = q;
+  if (!q) { clearSearch(); return; }
+  state.context = { type: "search", id: null, label: "Search" };
+  setActiveNav(null);
+  renderSidebar();
+  setMobileView("notes");
+  loadNotes().then(() => {
+    const n = state.notes.length;
+    paneTitle.textContent = `${n} result${n === 1 ? "" : "s"}`;
+  });
+}
+
+function clearSearch() {
+  searchInput.value = "";
+  state.searchQuery = "";
+  updateSearchClear();
+  state.context = { type: "all", id: null, label: "All Notes" };
+  paneTitle.textContent = "All Notes";
+  setActiveNav(navAllNotes);
+  renderSidebar();
+  loadNotes();
+}
+
+searchInput.addEventListener("input", updateSearchClear);
+searchInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); runSearch(); }
 });
+$("search-clear").addEventListener("click", () => { clearSearch(); searchInput.focus(); });
 
 // ── Folder tree ───────────────────────────────────────────────────────────────
 
@@ -667,6 +681,7 @@ navAllNotes.addEventListener("click", () => {
   state.context = { type: "all", id: null, label: "All Notes" };
   state.searchQuery = "";
   searchInput.value = "";
+  updateSearchClear();
   paneTitle.textContent = "All Notes";
   setActiveNav(navAllNotes);
   renderSidebar();
@@ -679,6 +694,7 @@ navRecents.addEventListener("click", () => {
   state.context = { type: "recents", id: null, label: "Recents" };
   state.searchQuery = "";
   searchInput.value = "";
+  updateSearchClear();
   paneTitle.textContent = "Recents";
   setActiveNav(navRecents);
   renderSidebar();
@@ -901,7 +917,9 @@ function renderNotesList() {
   }
 
   if (!subfolders.length && !notes.length) {
-    notesList.innerHTML = `<div class="notes-empty">No notes yet.<br>Tap <strong>+</strong> to create one.</div>`;
+    notesList.innerHTML = state.context.type === "search"
+      ? `<div class="notes-empty">No results for “${esc(state.searchQuery)}”.</div>`
+      : `<div class="notes-empty">No notes yet.<br>Tap <strong>+</strong> to create one.</div>`;
     return;
   }
 

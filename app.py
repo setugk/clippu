@@ -219,8 +219,8 @@ def sync():
 @app.route("/manifest.json")
 def manifest():
     return jsonify({
-        "name": "Clippery",
-        "short_name": "Clippery",
+        "name": "Kathe",
+        "short_name": "Kathe",
         "start_url": "/",
         "display": "standalone",
         "background_color": "#ffffff",
