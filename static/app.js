@@ -1942,7 +1942,7 @@ function showNoteCtxMenu(note, x, y) {
 }
 
 function hideNoteCtxMenu() {
-  noteCtxMenu.classList.add("hidden");
+  if (noteCtxMenu) noteCtxMenu.classList.add("hidden");
   contextMenuNote = null;
 }
 
