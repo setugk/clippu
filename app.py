@@ -12,7 +12,7 @@ CLIPPERY_USER   = os.environ.get("CLIPPERY_USER")
 CLIPPERY_PASS   = os.environ.get("CLIPPERY_PASS")
 JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 STATIC_VERSION  = str(int(time.time()))
-APP_VERSION     = "1.7.1"
+APP_VERSION     = "1.8.0"
 
 
 def requires_auth(f):
