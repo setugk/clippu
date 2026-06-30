@@ -266,19 +266,22 @@ $("settings-topbar-back").addEventListener("click", () => {
   else closeSettings();
 });
 
-// Swipe from the left edge to go back from a settings section to the list
+// Swipe from the left edge to go back within settings or close settings entirely
 let settingsSwipeX = 0, settingsSwipeY = 0, settingsSwipeActive = false;
 $("settings-view").addEventListener("touchstart", e => {
   settingsSwipeX = e.touches[0].clientX;
   settingsSwipeY = e.touches[0].clientY;
-  settingsSwipeActive = settingsSwipeX < 32 && $("settings-view").dataset.pane === "detail";
+  settingsSwipeActive = settingsSwipeX < 32;
 }, { passive: true });
 $("settings-view").addEventListener("touchend", e => {
   if (!settingsSwipeActive) return;
   settingsSwipeActive = false;
   const dx = e.changedTouches[0].clientX - settingsSwipeX;
   const dy = Math.abs(e.changedTouches[0].clientY - settingsSwipeY);
-  if (dx > 60 && dy < 80) settingsBackToList();
+  if (dx > 60 && dy < 80) {
+    if ($("settings-view").dataset.pane === "detail") settingsBackToList();
+    else closeSettings();
+  }
 }, { passive: true });
 
 // Block pinch-to-zoom on iOS Safari (gesture events) — touch-action handles the rest.
