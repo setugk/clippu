@@ -3,7 +3,7 @@
 # Keeps last 30 SQLite snapshots in /volume1/backups/journery/.
 
 BACKUP_DIR="/volume1/backups/journery"
-DB_SRC="/volume1/docker/clipboard/data/clippery.db"
+DB_SRC="/volume1/docker/clipboard/data/notes.db"
 DATE=$(date +%Y-%m-%d)
 
 mkdir -p "$BACKUP_DIR"

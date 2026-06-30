@@ -782,14 +782,14 @@ body {
   font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--text);
 }
 .settings-topbar-back {
-  align-items: center; gap: 5px;
+  display: flex; align-items: center; gap: 4px;
   background: none; border: none; cursor: pointer;
   font-size: 14px; font-weight: 500; color: var(--text-2);
-  font-family: inherit; padding: 4px 0;
+  font-family: inherit; padding: 4px 8px 4px 0;
   transition: color 0.1s; white-space: nowrap;
 }
 .settings-topbar-back:hover { color: var(--text); }
-.settings-topbar-back.hidden { visibility: hidden; } /* preserves layout space on mobile */
+.settings-topbar-spacer { width: 60px; }
 
 .settings-body {
   display: flex; flex: 1; overflow: hidden;
@@ -1156,8 +1156,7 @@ body {
   }
   .settings-topbar-title { text-align: center; font-size: 15px; font-weight: 600; justify-self: center; }
   .settings-topbar-back { display: flex; justify-self: start; }
-  .settings-topbar-back.hidden { display: flex; visibility: hidden; }
-  .settings-topbar-close { justify-self: end; }
+  .settings-topbar-spacer { justify-self: end; }
 
   /* Category pane becomes the full-screen list */
   .settings-cat-pane {

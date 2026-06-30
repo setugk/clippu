@@ -1,0 +1,81 @@
+{
+  "folders": [
+    {
+      "id": "f1000000-0000-0000-0000-000000000001",
+      "name": "Journal",
+      "parent_id": null
+    },
+    {
+      "id": "f1000000-0000-0000-0000-000000000002",
+      "name": "Work",
+      "parent_id": null
+    },
+    {
+      "id": "f1000000-0000-0000-0000-000000000003",
+      "name": "2025",
+      "parent_id": "f1000000-0000-0000-0000-000000000001"
+    }
+  ],
+  "notes": [
+    {
+      "id": "b0000000-0000-0000-0000-000000000001",
+      "title": "Welcome to Beta",
+      "body": "<div>This is the Journery beta environment. Changes are deployed here first before going to prod.</div><div><br></div><div>Use this space to test new features — it resets to this seed content on every beta deploy.</div>",
+      "folder_id": null,
+      "tags": ["meta"],
+      "created_at": "2025-01-01T09:00:00",
+      "updated_at": "2025-01-01T09:00:00",
+      "deleted_at": null
+    },
+    {
+      "id": "b0000000-0000-0000-0000-000000000002",
+      "title": "March 10",
+      "body": "<div>Good morning. Slept well. Big day ahead.</div><div><br></div><div>Things to get done:</div><ul><li>Call the bank about the statement</li><li>Review the design mockups before standup</li><li>Pick up groceries on the way home</li></ul><div><br></div><div>Feeling optimistic about the week overall.</div>",
+      "folder_id": "f1000000-0000-0000-0000-000000000003",
+      "tags": ["daily-journal"],
+      "created_at": "2025-03-10T08:15:00",
+      "updated_at": "2025-03-10T08:15:00",
+      "deleted_at": null
+    },
+    {
+      "id": "b0000000-0000-0000-0000-000000000003",
+      "title": "March 11",
+      "body": "<div>The standup went longer than expected. We need a better format.</div><hr><div>Separate thought: I've been thinking about switching to async updates entirely. Fewer meetings, more written communication. Worth proposing.</div><div><br></div><div>Also remembered I need to renew the car registration this month.</div>",
+      "folder_id": "f1000000-0000-0000-0000-000000000003",
+      "tags": ["daily-journal"],
+      "created_at": "2025-03-11T07:45:00",
+      "updated_at": "2025-03-11T07:45:00",
+      "deleted_at": null
+    },
+    {
+      "id": "b0000000-0000-0000-0000-000000000004",
+      "title": "March 12",
+      "body": "<div>Quiet day. Mostly heads-down work.</div><div><br></div><div>Read a bit in the evening — halfway through the book now. The author's argument about attention is interesting but feels overstated.</div><div><br></div><div>Need to be more consistent about writing here. Even five minutes helps.</div>",
+      "folder_id": "f1000000-0000-0000-0000-000000000003",
+      "tags": ["daily-journal"],
+      "created_at": "2025-03-12T21:30:00",
+      "updated_at": "2025-03-12T21:30:00",
+      "deleted_at": null
+    },
+    {
+      "id": "b0000000-0000-0000-0000-000000000005",
+      "title": "Q2 Planning notes",
+      "body": "<div>Key themes for Q2:</div><ol><li>Ship the mobile improvements</li><li>Reduce support backlog by 40%</li><li>Hire one more engineer</li></ol><div><br></div><div>Open questions:</div><ul><li>Do we prioritise the API or the dashboard first?</li><li>What's the timeline for the data migration?</li></ul><hr><div>Risks: the contractor finishes in April, bandwidth is tight until then.</div>",
+      "folder_id": "f1000000-0000-0000-0000-000000000002",
+      "tags": ["work", "planning"],
+      "created_at": "2025-03-01T10:00:00",
+      "updated_at": "2025-03-01T10:00:00",
+      "deleted_at": null
+    },
+    {
+      "id": "b0000000-0000-0000-0000-000000000006",
+      "title": "App ideas",
+      "body": "<div>Random ideas, unfiltered:</div><ul><li>Offline-first sync with CRDTs</li><li>End-to-end encrypted notes — keys stay on device</li><li>Keyboard shortcuts for everything</li><li>Weekly digest email: your notes from this week last year</li></ul><div><br></div><div>The digest idea is the most interesting. Low effort, high value.</div>",
+      "folder_id": "f1000000-0000-0000-0000-000000000002",
+      "tags": ["work", "ideas"],
+      "created_at": "2025-02-20T16:00:00",
+      "updated_at": "2025-02-20T16:00:00",
+      "deleted_at": null
+    }
+  ]
+}

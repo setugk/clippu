@@ -1,12 +1,7 @@
 #!/bin/sh
-# Journery NAS rebuild — builds shared image, recreates all instances.
-# Runs on the NAS via deploy.sh.
-
+# Promote journery:latest (already built by deploy-beta) to prod instances.
+# Does NOT rebuild — just recreates containers from the existing image.
 set -e
-cd /volume1/docker/journery-build
-
-echo "Building journery:latest..."
-docker build -t journery:latest . || { echo "Build failed"; exit 1; }
 
 recreate() {
   NAME=$1 PORT=$2 DATA=$3 JNAME=$4
@@ -26,4 +21,4 @@ recreate() {
 recreate clipboard        5050 /volume1/docker/clipboard/data        Setu
 recreate clipboard-agrams 5051 /volume1/docker/clipboard-agrams/data Apoo
 
-echo "All instances updated."
+echo "All prod instances updated."

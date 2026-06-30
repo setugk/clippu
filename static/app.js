@@ -235,14 +235,14 @@ function openSettingsSection(section) {
   if (section === "themes") renderThemeGrid();
   if (isMobile()) {
     $("settings-view").dataset.pane = "detail";
-    $("settings-topbar-back").classList.remove("hidden");
+    $("settings-topbar-back").querySelector("span").textContent = "Settings";
     $("settings-topbar-title").textContent = SETTINGS_SECTION_LABELS[section] || section;
   }
 }
 
 function settingsBackToList() {
   $("settings-view").dataset.pane = "list";
-  $("settings-topbar-back").classList.add("hidden");
+  $("settings-topbar-back").querySelector("span").textContent = "Back";
   $("settings-topbar-title").textContent = "Settings";
 }
 
@@ -255,14 +255,16 @@ function openSettings() {
   $("settings-folders-toggle").classList.toggle("on", state.showFolders);
   updateDatePicker();
   $("settings-view").dataset.pane = "list";
-  $("settings-topbar-back").classList.add("hidden");
+  $("settings-topbar-back").querySelector("span").textContent = "Back";
   $("settings-topbar-title").textContent = "Settings";
   if (!isMobile()) openSettingsSection("general");
   $("settings-view").classList.remove("hidden");
 }
 
-$("settings-topbar-back").addEventListener("click", settingsBackToList);
-$("settings-topbar-close").addEventListener("click", closeSettings);
+$("settings-topbar-back").addEventListener("click", () => {
+  if ($("settings-view").dataset.pane === "detail") settingsBackToList();
+  else closeSettings();
+});
 
 // Swipe from the left edge to go back from a settings section to the list
 let settingsSwipeX = 0, settingsSwipeY = 0, settingsSwipeActive = false;
@@ -1430,8 +1432,98 @@ noteTitle.addEventListener("input", scheduleSave);
 noteTitle.addEventListener("keydown", e => {
   if (e.key === "Enter") { e.preventDefault(); noteBody.focus(); }
 });
+function mdActiveBlock() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return null;
+  const range = sel.getRangeAt(0);
+  let b = range.startContainer;
+  if (b.nodeType === Node.TEXT_NODE) b = b.parentNode;
+  while (b !== noteBody && b.parentNode !== noteBody) b = b.parentNode;
+  return b;
+}
+
+function mdBlockText(block) {
+  return block === noteBody ? (noteBody.textContent || '') : (block.textContent || '');
+}
+
+function mdInsertDivider(block) {
+  const hr   = document.createElement('hr');
+  const next = document.createElement('div');
+  next.appendChild(document.createElement('br'));
+  if (block !== noteBody) {
+    block.replaceWith(hr);
+    hr.insertAdjacentElement('afterend', next);
+  } else {
+    noteBody.innerHTML = '';
+    noteBody.appendChild(hr);
+    noteBody.appendChild(next);
+  }
+  const r = document.createRange();
+  r.setStart(next, 0); r.collapse(true);
+  const s = window.getSelection();
+  if (s) { s.removeAllRanges(); s.addRange(r); }
+  scheduleSave();
+}
+
+function mdInsertList(block, tag) {
+  const list = document.createElement(tag);
+  const li   = document.createElement('li');
+  list.appendChild(li);
+  if (block !== noteBody) {
+    block.replaceWith(list);
+  } else {
+    noteBody.innerHTML = '';
+    noteBody.appendChild(list);
+  }
+  const r = document.createRange();
+  r.setStart(li, 0); r.collapse(true);
+  const s = window.getSelection();
+  if (s) { s.removeAllRanges(); s.addRange(r); }
+}
+
+// beforeinput fires BEFORE the character lands in the DOM.
+// e.data is the exact character the user is typing — reliable on iOS virtual keyboard.
+noteBody.addEventListener('beforeinput', e => {
+  if (e.inputType !== 'insertText') return;
+  const char  = e.data || '';
+  const block = mdActiveBlock();
+  if (!block) return;
+  const cur = mdBlockText(block).trim();
+
+  // Space after * or - → bullet list
+  if (char === ' ' && (cur === '*' || cur === '-')) {
+    e.preventDefault();
+    mdInsertList(block, 'ul');
+    return;
+  }
+  // Space after "1." etc → numbered list
+  if (char === ' ' && /^\d+\.$/.test(cur)) {
+    e.preventDefault();
+    mdInsertList(block, 'ol');
+    return;
+  }
+  // Third dash → divider  (catches "--" + "-" and "–" + "-" after iOS autocorrect of first two)
+  if (char === '-' && (cur === '--' || cur === '–')) {
+    e.preventDefault();
+    mdInsertDivider(block);
+  }
+});
+
+// input fallback: catches autocorrect-triggered replacements and non-beforeinput browsers
 noteBody.addEventListener("input", () => {
   updateNoteBodyPlaceholder();
+  const block = mdActiveBlock();
+  if (block) {
+    const raw  = mdBlockText(block);
+    const trim = raw.trim();
+    if (['---', '—', '–', '—-', '–-'].includes(trim)) {
+      mdInsertDivider(block);
+    } else if (raw === '* ' || raw === '- ') {
+      mdInsertList(block, 'ul');
+    } else if (/^\d+\. $/.test(raw)) {
+      mdInsertList(block, 'ol');
+    }
+  }
   scheduleSave();
 });
 
@@ -1448,40 +1540,6 @@ noteBody.addEventListener("keydown", e => {
     e.preventDefault();
     document.execCommand('insertText', false, '  ');
     return;
-  }
-
-  if (e.key === "Enter") {
-    const sel = window.getSelection();
-    if (sel && sel.isCollapsed && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
-      let block = range.startContainer;
-      if (block.nodeType === Node.TEXT_NODE) block = block.parentNode;
-      while (block !== noteBody && block.parentNode !== noteBody) block = block.parentNode;
-      const lineText = (block === noteBody
-        ? (range.startContainer.textContent || '')
-        : (block.textContent || '')).trim();
-      if (lineText === '---') {
-        e.preventDefault();
-        const hr   = document.createElement('hr');
-        const next = document.createElement('div');
-        next.appendChild(document.createElement('br'));
-        if (block === noteBody) {
-          noteBody.innerHTML = '';
-          noteBody.appendChild(hr);
-          noteBody.appendChild(next);
-        } else {
-          block.replaceWith(hr);
-          hr.insertAdjacentElement('afterend', next);
-        }
-        const newRange = document.createRange();
-        newRange.setStart(next, 0);
-        newRange.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-        scheduleSave();
-        return;
-      }
-    }
   }
 
   if (e.metaKey || e.ctrlKey) {

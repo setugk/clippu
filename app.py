@@ -1,4 +1,5 @@
 import os
+import time
 import json
 from functools import wraps
 from flask import Flask, request, jsonify, render_template, Response
@@ -10,6 +11,7 @@ db.init_db()
 CLIPPERY_USER   = os.environ.get("CLIPPERY_USER")
 CLIPPERY_PASS   = os.environ.get("CLIPPERY_PASS")
 JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
+STATIC_VERSION  = str(int(time.time()))
 
 
 def requires_auth(f):
@@ -29,7 +31,7 @@ def requires_auth(f):
 @app.route("/")
 @requires_auth
 def index():
-    return render_template("index.html", journery_name=JOURNERY_NAME)
+    return render_template("index.html", journery_name=JOURNERY_NAME, static_v=STATIC_VERSION)
 
 
 # ── Folders ───────────────────────────────────────────────────────────────────
