@@ -7,8 +7,9 @@ import db
 app = Flask(__name__)
 db.init_db()
 
-CLIPPERY_USER = os.environ.get("CLIPPERY_USER")
-CLIPPERY_PASS = os.environ.get("CLIPPERY_PASS")
+CLIPPERY_USER   = os.environ.get("CLIPPERY_USER")
+CLIPPERY_PASS   = os.environ.get("CLIPPERY_PASS")
+JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 
 
 def requires_auth(f):
@@ -28,7 +29,7 @@ def requires_auth(f):
 @app.route("/")
 @requires_auth
 def index():
-    return render_template("index.html")
+    return render_template("index.html", journery_name=JOURNERY_NAME)
 
 
 # ── Folders ───────────────────────────────────────────────────────────────────
@@ -234,9 +235,11 @@ def sync():
 
 @app.route("/manifest.json")
 def manifest():
+    full_name  = f"Journery | {JOURNERY_NAME}" if JOURNERY_NAME else "Journery"
+    short_name = JOURNERY_NAME if JOURNERY_NAME else "Journery"
     return jsonify({
-        "name": "Journery",
-        "short_name": "Journery",
+        "name": full_name,
+        "short_name": short_name,
         "start_url": "/",
         "display": "standalone",
         "background_color": "#ffffff",

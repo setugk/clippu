@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Journery">
+<meta name="apple-mobile-web-app-title" content="{% if journery_name %}{{ journery_name }}{% else %}Journery{% endif %}">
 <meta name="theme-color" content="#ffffff">
 <link rel="manifest" href="/manifest.json">
-<title>Journery</title>
+<title>{% if journery_name %}Journery | {{ journery_name }}{% else %}Journery{% endif %}</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23111'/><text x='16' y='23' text-anchor='middle' font-family='-apple-system,sans-serif' font-weight='600' font-size='19' fill='white'>J</text></svg>">
 <link rel="stylesheet" href="/static/style.css?v=26">
 </head>
@@ -19,7 +19,7 @@
   <!-- ── Sidebar ── -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <span class="app-title">Journery</span>
+      <span class="app-title">Journery{% if journery_name %} | {{ journery_name }}{% endif %}</span>
       <div class="sidebar-header-actions">
         <button class="icon-btn" id="compose-btn" title="New note">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
